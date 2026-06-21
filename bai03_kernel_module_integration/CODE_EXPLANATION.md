@@ -66,4 +66,4 @@ Kernel parser nhan `WRITE`, tao safe path trong root, mo file bang VFS API, ghi 
 
 GTK backend trong `kernel_module_commands.c` gui command vao `/dev/kfile_manager`. Neu permission denied, GUI hien dialog nhap sudo password va chay command bang sudo.
 
-Trang File Manager gui `SET_ROOT` khi user chon root directory, gui `LIST` de hien file trong root, va khi user chon file thi form ben phai thao tac truc tiep voi file do. Nut Read nap noi dung vao editor; Write/Append lay noi dung editor gui ve kernel.
+Trang Files duoc bo tri giong bai02. Khi user chon folder, GUI gui `SET_ROOT` vao `/dev/kfile_manager`; Refresh gui `LIST` va `INFO` tung file de do vao bang. Read/Write/Delete/Create deu gui command xuong kernel module thay vi thao tac file truc tiep trong user-space.

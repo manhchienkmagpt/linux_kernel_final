@@ -331,9 +331,10 @@ static int file_info(const char *filename)
     ts = inode->i_mtime;
 #endif
 
-    set_result("INFO %s\nfull_path=%s\nsize=%lld\nmode=%o\nuid=%u\ngid=%u\nmtime=%lld\n",
+    set_result("INFO %s\nfull_path=%s\ntype=%s\nsize=%lld\nmode=%o\nuid=%u\ngid=%u\nmtime=%lld\n",
                filename,
                full_path,
+               S_ISDIR(inode->i_mode) ? "Folder" : "File",
                (long long)i_size_read(inode),
                inode->i_mode & 0777,
                from_kuid(&init_user_ns, inode->i_uid),

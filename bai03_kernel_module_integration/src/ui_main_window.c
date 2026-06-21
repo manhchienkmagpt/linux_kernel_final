@@ -43,7 +43,7 @@ GtkWidget *ui_main_window_new(GtkApplication *app) {
 
     gtk_stack_add_titled(GTK_STACK(stack), ui_dashboard_page_new(ctx), "dashboard", "Dashboard");
     gtk_stack_add_titled(GTK_STACK(stack), ui_module_control_page_new(ctx), "module", "Module Control");
-    gtk_stack_add_titled(GTK_STACK(stack), ui_device_io_page_new(ctx), "files", "File Manager");
+    gtk_stack_add_titled(GTK_STACK(stack), ui_device_io_page_new(ctx), "files", "Files");
     gtk_stack_add_titled(GTK_STACK(stack), ui_command_console_page_new(ctx), "console", "Command Console");
     gtk_stack_add_titled(GTK_STACK(stack), ui_kernel_log_page_new(ctx), "logs", "Kernel Log");
     gtk_stack_add_titled(GTK_STACK(stack), ui_help_page_new(ctx), "help", "Help");

@@ -62,19 +62,19 @@ Moi command printk:
 [kfile_manager] PID=... COMM=... CMD=CREATE FILE=file1.txt RESULT=OK
 ```
 
-## GTK File Manager
+## GTK Files Page
 
-- Choose Root / Set Root gui `SET_ROOT`.
-- Refresh gui `LIST` va do file vao danh sach ben trai.
-- Khi chon mot file, filename duoc dua vao form thao tac.
-- Read nap noi dung file vao editor.
-- Write/Append ghi noi dung editor xuong file.
-- Delete co dialog xac nhan.
-- Rename/Copy dung target filename.
+- Giao dien duoc thiet ke giong Files page cua bai02.
+- Choose Folder gui `SET_ROOT`.
+- Refresh gui `LIST`, sau do goi `INFO` tung file de hien bang Name/Type/Size/Permission/Modified Time.
+- Create gui `CREATE`.
+- Read gui `READ` va hien dialog noi dung.
+- Write gui `WRITE` voi noi dung tu dialog.
+- Delete gui `DELETE` sau confirm dialog.
 
 ## GTK Pages
 
 - Module Control: build/load/unload/status/clean.
-- File Manager: gui command theo form.
+- Files: giao dien bang file giong bai02, backend gui command xuong kernel module.
 - Command Console: gui command thu cong.
 - Kernel Log: doc va filter dmesg.

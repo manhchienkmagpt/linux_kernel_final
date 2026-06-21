@@ -26,7 +26,7 @@ src/kfile_manager.c              kernel module
 src/kernel_module_commands.c/.h  backend GTK gui command/read result
 src/ui_dashboard_page.c          Dashboard
 src/ui_module_control_page.c     Module Control
-src/ui_device_io_page.c          File Manager
+src/ui_device_io_page.c          Files
 src/ui_command_console_page.c    Command Console
 src/ui_kernel_log_page.c         Kernel Log
 src/ui_help_page.c               Help
@@ -101,12 +101,12 @@ App GTK ten **Linux Kernel File Manager** gom:
 
 - Dashboard
 - Module Control
-- File Manager
+- Files
 - Command Console
 - Kernel Log
 - Help
 
-File Manager cho phep chon root directory, hien danh sach file trong root, chon file va thao tac them/sua/xoa/doi ten/copy/doc metadata. Command Console cho phep nhap command thu cong nhu:
+Files page duoc lam giong bai02: chon folder, hien bang file, Open/Read/Write/Delete/Create. Khac voi bai02, cac thao tac file trong bai03 duoc gui xuong kernel module `kfile_manager`. Command Console cho phep nhap command thu cong nhu:
 
 ```text
 CREATE a.txt

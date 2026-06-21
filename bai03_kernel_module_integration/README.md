@@ -13,7 +13,7 @@ src/kfile_manager.c              kernel module
 src/kernel_module_commands.c/.h  backend GTK gui command/read result
 src/ui_dashboard_page.c          Dashboard
 src/ui_module_control_page.c     Build/load/unload module
-src/ui_device_io_page.c          File Manager
+src/ui_device_io_page.c          Files
 src/ui_command_console_page.c    Command Console
 src/ui_kernel_log_page.c         Kernel Log
 src/ui_help_page.c               Help
@@ -76,7 +76,7 @@ Pages:
 
 - Dashboard: module status, device file, root directory, last command/result, total commands.
 - Module Control: build/load/unload/status/clean.
-- File Manager: chon root directory, hien danh sach file trong root, chon file va thao tac create/read/write/append/delete/rename/copy/info.
+- Files: giao dien giong bai02, chon folder root, hien bang file va thao tac Open/Create/Read/Write/Delete qua kernel module.
 - Command Console: gui command thu cong va doc result.
 - Kernel Log: refresh/filter `kfile_manager`.
 - Help: huong dan demo.
