@@ -34,7 +34,7 @@ static void on_set_time_response(GtkDialog *dialog, int response, gpointer user_
             char *qvalue = quote_arg(value);
             char *args = g_strdup_printf("time-set %s", qvalue);
             char *output = NULL;
-            gboolean ok = run_system_script(args, &output);
+            gboolean ok = run_system_script_sudo(GTK_WINDOW(page->parent_window), args, &output);
             append_log(page->log, ok ? "OK" : "ERROR", output);
             refresh_time(page);
             g_free(output);

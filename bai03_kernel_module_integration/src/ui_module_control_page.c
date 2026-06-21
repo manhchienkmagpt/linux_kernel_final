@@ -22,32 +22,36 @@ static void command_done(gboolean ok, const char *output, gpointer user_data) {
     append_output(page, output);
 }
 
-static void run_page_command(ModuleControlPage *page, const char *command, const char *label) {
+static void run_page_command(ModuleControlPage *page, const char *command, const char *label, gboolean needs_sudo) {
     gtk_label_set_text(GTK_LABEL(page->busy_label), label);
     append_output(page, label);
-    run_command_async(command, command_done, page);
+    if (needs_sudo) {
+        run_command_async_sudo(GTK_WINDOW(page->ctx->window), command, command_done, page);
+    } else {
+        run_command_async(command, command_done, page);
+    }
 }
 
 static void on_build(GtkButton *button, gpointer user_data) {
     (void)button;
-    run_page_command(user_data, "make module", "Running: make module");
+    run_page_command(user_data, "make module", "Running: make module", FALSE);
 }
 
 static void on_clean(GtkButton *button, gpointer user_data) {
     (void)button;
-    run_page_command(user_data, "make clean", "Running: make clean");
+    run_page_command(user_data, "make clean", "Running: make clean", FALSE);
 }
 
 static void on_status(GtkButton *button, gpointer user_data) {
     (void)button;
-    run_page_command(user_data, "bash scripts/module_control.sh status", "Checking module status...");
+    run_page_command(user_data, "bash scripts/module_control.sh status", "Checking module status...", FALSE);
 }
 
 static void confirm_response(GtkDialog *dialog, int response, gpointer user_data) {
     ModuleControlPage *page = g_object_get_data(G_OBJECT(dialog), "page");
     const char *command = user_data;
     if (response == GTK_RESPONSE_ACCEPT) {
-        run_page_command(page, command, g_strrstr(command, "unload") ? "Unloading module..." : "Loading module...");
+        run_page_command(page, command, g_strrstr(command, "unload") ? "Unloading module..." : "Loading module...", TRUE);
     }
     gtk_window_destroy(GTK_WINDOW(dialog));
 }

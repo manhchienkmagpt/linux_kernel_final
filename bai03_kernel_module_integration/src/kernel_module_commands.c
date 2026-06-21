@@ -1,4 +1,5 @@
 #include "kernel_module_commands.h"
+#include <gio/gio.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <string.h>
@@ -7,6 +8,8 @@
 
 typedef struct {
     char *command;
+    char *password;
+    gboolean use_sudo;
     CommandDoneCallback callback;
     gpointer user_data;
 } AsyncCommand;
@@ -18,12 +21,70 @@ typedef struct {
     gpointer user_data;
 } AsyncResult;
 
+typedef struct {
+    GMainLoop *loop;
+    GtkWidget *entry;
+    char *password;
+    gboolean accepted;
+} PasswordDialogData;
+
 static gboolean command_done_idle(gpointer idle_data) {
     AsyncResult *r = idle_data;
     if (r->callback) r->callback(r->ok, r->output, r->user_data);
     g_free(r->output);
     g_free(r);
     return FALSE;
+}
+
+static void password_dialog_response(GtkDialog *dialog, int response, gpointer user_data) {
+    PasswordDialogData *data = user_data;
+    if (response == GTK_RESPONSE_ACCEPT) {
+        data->accepted = TRUE;
+        data->password = g_strdup(gtk_editable_get_text(GTK_EDITABLE(data->entry)));
+    }
+    gtk_window_destroy(GTK_WINDOW(dialog));
+    g_main_loop_quit(data->loop);
+}
+
+static char *prompt_sudo_password(GtkWindow *parent) {
+    PasswordDialogData data = {0};
+    data.loop = g_main_loop_new(NULL, FALSE);
+
+    GtkWidget *dialog = gtk_dialog_new_with_buttons("Enter sudo password", parent,
+        GTK_DIALOG_MODAL, "Cancel", GTK_RESPONSE_CANCEL, "Run sudo", GTK_RESPONSE_ACCEPT, NULL);
+    GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
+    GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+    gtk_widget_set_margin_top(box, 12);
+    gtk_widget_set_margin_bottom(box, 12);
+    gtk_widget_set_margin_start(box, 12);
+    gtk_widget_set_margin_end(box, 12);
+
+    GtkWidget *label = gtk_label_new("This command requires sudo. Enter the current user's password:");
+    gtk_label_set_wrap(GTK_LABEL(label), TRUE);
+    gtk_widget_set_halign(label, GTK_ALIGN_START);
+    gtk_box_append(GTK_BOX(box), label);
+
+    data.entry = gtk_entry_new();
+    gtk_entry_set_visibility(GTK_ENTRY(data.entry), FALSE);
+    gtk_entry_set_input_purpose(GTK_ENTRY(data.entry), GTK_INPUT_PURPOSE_PASSWORD);
+    gtk_entry_set_placeholder_text(GTK_ENTRY(data.entry), "sudo password");
+    gtk_box_append(GTK_BOX(box), data.entry);
+
+    gtk_box_append(GTK_BOX(content), box);
+    g_signal_connect(dialog, "response", G_CALLBACK(password_dialog_response), &data);
+    g_signal_connect_swapped(data.entry, "activate", G_CALLBACK(gtk_window_activate_default), dialog);
+    gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
+    gtk_window_present(GTK_WINDOW(dialog));
+    gtk_widget_grab_focus(data.entry);
+
+    g_main_loop_run(data.loop);
+    g_main_loop_unref(data.loop);
+    return data.accepted ? data.password : NULL;
+}
+
+static gboolean sudo_has_cached_credentials(void) {
+    int status = 0;
+    return g_spawn_command_line_sync("sudo -n true", NULL, NULL, &status, NULL) && status == 0;
 }
 
 gboolean module_is_loaded(void) {
@@ -48,35 +109,60 @@ char *kernel_version_string(void) {
     return g_strdup("Unknown");
 }
 
-char *run_command_sync(const char *command, gboolean *ok) {
-    char *out = NULL, *err = NULL;
-    int status = 0;
+static char *run_command_sync_internal(const char *command, gboolean use_sudo, const char *password, gboolean *ok) {
+    char *full_command = use_sudo ? g_strdup_printf("sudo -S -p '' %s", command) : g_strdup(command);
+    char *stdin_text = (use_sudo && password) ? g_strdup_printf("%s\n", password) : NULL;
     GError *error = NULL;
-    gboolean spawn_ok = g_spawn_command_line_sync(command, &out, &err, &status, &error);
+    GSubprocess *proc = g_subprocess_new(G_SUBPROCESS_FLAGS_STDIN_PIPE |
+                                         G_SUBPROCESS_FLAGS_STDOUT_PIPE |
+                                         G_SUBPROCESS_FLAGS_STDERR_PIPE,
+                                         &error, "bash", "-lc", full_command, NULL);
+
+    if (!proc) {
+        if (ok) *ok = FALSE;
+        char *message = g_strdup(error->message);
+        g_clear_error(&error);
+        g_free(full_command);
+        g_free(stdin_text);
+        return message;
+    }
+
+    char *out = NULL;
+    char *err = NULL;
+    gboolean communicate_ok = g_subprocess_communicate_utf8(proc, stdin_text, NULL, &out, &err, &error);
+    gboolean status_ok = communicate_ok && g_subprocess_get_successful(proc);
 
     GString *result = g_string_new("");
-    g_string_append_printf(result, "$ %s\n", command);
-    if (!spawn_ok) {
+    g_string_append_printf(result, "$ %s\n", full_command);
+    if (!communicate_ok) {
         g_string_append(result, error->message);
-        g_error_free(error);
-        if (ok) *ok = FALSE;
+        g_clear_error(&error);
     } else {
         if (out && *out) g_string_append(result, out);
         if (err && *err) g_string_append(result, err);
-        if (ok) *ok = (status == 0);
     }
+
+    if (ok) *ok = status_ok;
     g_free(out);
     g_free(err);
+    g_object_unref(proc);
+    g_free(full_command);
+    g_free(stdin_text);
     return g_string_free(result, FALSE);
+}
+
+char *run_command_sync(const char *command, gboolean *ok) {
+    return run_command_sync_internal(command, FALSE, NULL, ok);
 }
 
 static gpointer command_worker(gpointer data) {
     AsyncCommand *cmd = data;
     AsyncResult *result = g_new0(AsyncResult, 1);
-    result->output = run_command_sync(cmd->command, &result->ok);
+    result->output = run_command_sync_internal(cmd->command, cmd->use_sudo, cmd->password, &result->ok);
     result->callback = cmd->callback;
     result->user_data = cmd->user_data;
     g_free(cmd->command);
+    g_free(cmd->password);
     g_free(cmd);
     g_idle_add(command_done_idle, result);
     return NULL;
@@ -88,6 +174,31 @@ void run_command_async(const char *command, CommandDoneCallback callback, gpoint
     cmd->callback = callback;
     cmd->user_data = user_data;
     GThread *thread = g_thread_new("kernel-command", command_worker, cmd);
+    g_thread_unref(thread);
+}
+
+void run_command_async_sudo(GtkWindow *parent, const char *command, CommandDoneCallback callback, gpointer user_data) {
+    if (geteuid() == 0) {
+        run_command_async(command, callback, user_data);
+        return;
+    }
+
+    char *password = NULL;
+    if (!sudo_has_cached_credentials()) {
+        password = prompt_sudo_password(parent);
+        if (!password) {
+            if (callback) callback(FALSE, "Sudo password prompt was cancelled.", user_data);
+            return;
+        }
+    }
+
+    AsyncCommand *cmd = g_new0(AsyncCommand, 1);
+    cmd->command = g_strdup(command);
+    cmd->password = password;
+    cmd->use_sudo = TRUE;
+    cmd->callback = callback;
+    cmd->user_data = user_data;
+    GThread *thread = g_thread_new("kernel-command-sudo", command_worker, cmd);
     g_thread_unref(thread);
 }
 
@@ -125,11 +236,9 @@ char *write_device_data(const char *text, gboolean *ok) {
     return g_strdup_printf("Wrote %zd bytes to %s", n, DEVICE_PATH);
 }
 
-char *read_kernel_log(gboolean module_only, const char *filter, int *line_count) {
-    gboolean ok = FALSE;
-    char *raw = run_command_sync("bash -lc 'dmesg | tail -200'", &ok);
+static char *filter_kernel_log(const char *raw, gboolean module_only, const char *filter, int *line_count) {
     GString *filtered = g_string_new("");
-    char **lines = g_strsplit(raw, "\n", -1);
+    char **lines = g_strsplit(raw ? raw : "", "\n", -1);
     int count = 0;
     for (int i = 0; lines[i]; i++) {
         if (!lines[i][0] || lines[i][0] == '$') continue;
@@ -140,6 +249,36 @@ char *read_kernel_log(gboolean module_only, const char *filter, int *line_count)
     }
     if (line_count) *line_count = count;
     g_strfreev(lines);
-    g_free(raw);
     return g_string_free(filtered, FALSE);
+}
+
+char *read_kernel_log(gboolean module_only, const char *filter, int *line_count) {
+    gboolean ok = FALSE;
+    char *raw = run_command_sync("dmesg | tail -200", &ok);
+    char *result = filter_kernel_log(raw, module_only, filter, line_count);
+    g_free(raw);
+    return result;
+}
+
+char *read_kernel_log_sudo(GtkWindow *parent, gboolean module_only, const char *filter, int *line_count) {
+    gboolean ok = FALSE;
+    char *raw = run_command_sync("dmesg | tail -200", &ok);
+
+    if (!ok && geteuid() != 0) {
+        g_free(raw);
+        char *password = NULL;
+        if (!sudo_has_cached_credentials()) {
+            password = prompt_sudo_password(parent);
+            if (!password) {
+                if (line_count) *line_count = 0;
+                return g_strdup("Sudo password prompt was cancelled.");
+            }
+        }
+        raw = run_command_sync_internal("dmesg | tail -200", TRUE, password, &ok);
+        g_free(password);
+    }
+
+    char *result = filter_kernel_log(raw, module_only, filter, line_count);
+    g_free(raw);
+    return result;
 }

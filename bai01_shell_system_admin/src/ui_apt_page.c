@@ -29,7 +29,10 @@ static void run_apt_action(AptPage *page, const char *action) {
     char *qpkg = quote_arg(pkg);
     char *args = g_strdup_printf("%s %s", action, qpkg);
     char *output = NULL;
-    gboolean ok = run_system_script(args, &output);
+    gboolean needs_sudo = g_strcmp0(action, "apt-install") == 0 || g_strcmp0(action, "apt-remove") == 0;
+    gboolean ok = needs_sudo
+        ? run_system_script_sudo(GTK_WINDOW(page->parent_window), args, &output)
+        : run_system_script(args, &output);
     set_output(page, output);
     append_log(page->log, ok ? "OK" : "ERROR", output);
     g_free(output);

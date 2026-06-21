@@ -2,6 +2,7 @@
 #include "kernel_module_commands.h"
 
 typedef struct {
+    AppContext *ctx;
     GtkWidget *log_view;
     GtkWidget *filter_entry;
     GtkWidget *count_label;
@@ -18,7 +19,7 @@ static void set_log(KernelLogPage *page, const char *text, int count) {
 static void load_logs(KernelLogPage *page, gboolean module_only) {
     int count = 0;
     const char *filter = gtk_editable_get_text(GTK_EDITABLE(page->filter_entry));
-    char *logs = read_kernel_log(module_only, filter, &count);
+    char *logs = read_kernel_log_sudo(GTK_WINDOW(page->ctx->window), module_only, filter, &count);
     set_log(page, logs, count);
     g_free(logs);
 }
@@ -44,8 +45,8 @@ static void on_search_changed(GtkEditable *editable, gpointer user_data) {
 }
 
 GtkWidget *ui_kernel_log_page_new(AppContext *ctx) {
-    (void)ctx;
     KernelLogPage *page = g_new0(KernelLogPage, 1);
+    page->ctx = ctx;
     GtkWidget *root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_widget_set_margin_top(root, 14);
     gtk_widget_set_margin_bottom(root, 14);
