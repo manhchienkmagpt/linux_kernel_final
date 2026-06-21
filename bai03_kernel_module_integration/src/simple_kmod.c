@@ -17,12 +17,12 @@ static struct class *simple_class;
 static char device_buffer[BUFFER_SIZE];
 static size_t buffer_len;
 
-static int simple_open(struct inode *inode, struct file *file) {
+static int kmod_open(struct inode *inode, struct file *file) {
     pr_info("simple_kmod: device opened\n");
     return 0;
 }
 
-static ssize_t simple_read(struct file *file, char __user *user_buffer, size_t count, loff_t *offset) {
+static ssize_t kmod_read(struct file *file, char __user *user_buffer, size_t count, loff_t *offset) {
     size_t bytes_to_read;
 
     if (*offset >= buffer_len)
@@ -37,7 +37,7 @@ static ssize_t simple_read(struct file *file, char __user *user_buffer, size_t c
     return bytes_to_read;
 }
 
-static ssize_t simple_write(struct file *file, const char __user *user_buffer, size_t count, loff_t *offset) {
+static ssize_t kmod_write(struct file *file, const char __user *user_buffer, size_t count, loff_t *offset) {
     size_t bytes_to_write = min(count, (size_t)(BUFFER_SIZE - 1));
 
     memset(device_buffer, 0, sizeof(device_buffer));
@@ -51,17 +51,17 @@ static ssize_t simple_write(struct file *file, const char __user *user_buffer, s
     return bytes_to_write;
 }
 
-static int simple_release(struct inode *inode, struct file *file) {
+static int kmod_release(struct inode *inode, struct file *file) {
     pr_info("simple_kmod: device released\n");
     return 0;
 }
 
 static const struct file_operations simple_fops = {
     .owner = THIS_MODULE,
-    .open = simple_open,
-    .read = simple_read,
-    .write = simple_write,
-    .release = simple_release,
+    .open = kmod_open,
+    .read = kmod_read,
+    .write = kmod_write,
+    .release = kmod_release,
 };
 
 static int __init simple_init(void) {
