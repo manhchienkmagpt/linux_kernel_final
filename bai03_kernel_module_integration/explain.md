@@ -2,22 +2,22 @@
 
 ## 1. Project nay lam gi
 
-Bai 03 xay dung Linux Kernel Module `usb_mouse_monitor` va app GTK4 de giam sat chuot hien co tren Ubuntu.
+Bai 03 xay dung Linux Kernel Module `mouse_monitor` va app GTK4 de giam sat chuot hien co tren Ubuntu.
 
-Module khong doc truc tiep USB interrupt endpoint nua. Thay vao do, module dang ky `input_handler` voi Linux input subsystem. Nho vay module co the nghe su kien tu chuot USB, touchpad hoac thiet bi input dang duoc Ubuntu quan ly ma khong can unbind/bind driver.
+Module dang ky `input_handler` voi Linux input subsystem. Nho vay module co the nghe su kien tu chuot thuong, touchpad hoac thiet bi input dang duoc Ubuntu quan ly.
 
 Khi co su kien click, di chuyen hoac cuon chuot, module ghi log vao kernel:
 
 ```text
-[usb_mouse_monitor] left=1 right=0 middle=0 dx=5 dy=-2 wheel=0
+[mouse_monitor] left=1 right=0 middle=0 dx=5 dy=-2 wheel=0
 ```
 
-App GTK co ten **Ubuntu Mouse Monitor** dung de build/load/unload module, doc trang thai chuot tu `/proc/usb_mouse_monitor`, va xem log kernel bang `dmesg`.
+App GTK co ten **Ubuntu Mouse Monitor** dung de build/load/unload module, doc trang thai chuot tu `/proc/mouse_monitor`, va xem log kernel bang `dmesg`.
 
 ## 2. Cau truc chinh
 
 ```text
-src/usb_mouse_monitor.c           kernel module input mouse monitor
+src/mouse_monitor.c               kernel module input mouse monitor
 src/kernel_module_commands.c/.h   backend GUI goi lenh, sudo, procfs, dmesg
 src/ui_dashboard_page.c           Dashboard
 src/ui_module_control_page.c      Module Control
@@ -27,9 +27,9 @@ src/ui_help_page.c                Help
 scripts/module_control.sh         load/unload/status/dmesg
 ```
 
-## 3. Kernel module `usb_mouse_monitor`
+## 3. Kernel module `mouse_monitor`
 
-Module khong hook syscall table va khong can thiep vao driver USB. No lam viec theo huong input subsystem:
+Module khong hook syscall table va khong can thiep vao driver chuot goc. No lam viec theo huong input subsystem:
 
 - `input_register_handler`: dang ky handler voi input subsystem.
 - `mouse_connect`: duoc goi khi co input device giong chuot match voi handler.
@@ -70,18 +70,18 @@ Module luu:
 
 `dx` va `dy` khong phai toa do tuyet doi tren man hinh. Chung chi la do dich chuyen so voi event truoc.
 
-## 5. Interface `/proc/usb_mouse_monitor`
+## 5. Interface `/proc/mouse_monitor`
 
 Module tao file:
 
 ```text
-/proc/usb_mouse_monitor
+/proc/mouse_monitor
 ```
 
 Khi user-space doc file nay:
 
 ```bash
-cat /proc/usb_mouse_monitor
+cat /proc/mouse_monitor
 ```
 
 Kernel tra ve trang thai hien tai:
@@ -133,11 +133,11 @@ Co nut Refresh Status va cac label:
 - dy
 - Wheel
 
-TextView ben duoi hien output raw tu `/proc/usb_mouse_monitor`.
+TextView ben duoi hien output raw tu `/proc/mouse_monitor`.
 
 ### Event Log
 
-Doc `dmesg`, loc log co chuoi `usb_mouse_monitor`, va hien log kernel lien quan den ket noi chuot hoac su kien chuot.
+Doc `dmesg`, loc log co chuoi `mouse_monitor`, va hien log kernel lien quan den ket noi chuot hoac su kien chuot.
 
 ### Help
 
@@ -145,10 +145,10 @@ Hien lenh demo:
 
 ```bash
 make
-sudo insmod src/usb_mouse_monitor.ko
-dmesg | grep usb_mouse_monitor
-cat /proc/usb_mouse_monitor
-sudo rmmod usb_mouse_monitor
+sudo insmod src/mouse_monitor.ko
+dmesg | grep mouse_monitor
+cat /proc/mouse_monitor
+sudo rmmod mouse_monitor
 ```
 
 ## 7. Cach demo nhanh
@@ -159,5 +159,5 @@ sudo rmmod usb_mouse_monitor
 4. Bam Load Module.
 5. Di chuyen/click/cuon chuot dang dung tren Ubuntu.
 6. Vao Mouse Status, bam Refresh Status.
-7. Vao Event Log, bam Filter usb_mouse_monitor.
+7. Vao Event Log, bam Filter mouse_monitor.
 8. Khi xong, bam Unload Module.

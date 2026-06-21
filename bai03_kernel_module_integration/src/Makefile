@@ -1,1 +1,1 @@
-obj-m += usb_mouse_monitor.o
+obj-m += mouse_monitor.o

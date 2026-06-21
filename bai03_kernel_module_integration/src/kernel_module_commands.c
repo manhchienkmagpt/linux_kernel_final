@@ -310,12 +310,12 @@ void mouse_status_free(MouseStatus *status) {
 
 char *last_mouse_event(void) {
     gboolean ok = FALSE;
-    char *raw = run_command_sync("dmesg | grep usb_mouse_monitor | tail -20", &ok);
+    char *raw = run_command_sync("dmesg | grep mouse_monitor | tail -20", &ok);
     char **lines = g_strsplit(raw ? raw : "", "\n", -1);
     char *last = g_strdup("No events yet");
 
     for (int i = 0; lines[i]; i++) {
-        if (!g_strstr_len(lines[i], -1, "usb_mouse_monitor")) continue;
+        if (!g_strstr_len(lines[i], -1, "mouse_monitor")) continue;
         g_free(last);
         last = g_strdup(lines[i]);
     }

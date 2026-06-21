@@ -42,7 +42,7 @@ static void refresh_status(MouseStatusPage *page) {
     char *message = NULL;
     MouseStatus *status = read_mouse_status(GTK_WINDOW(page->ctx->window), &ok, &message);
     if (!ok || !status) {
-        set_raw(page, message ? message : "Cannot read /proc/usb_mouse_monitor. Load module first.");
+        set_raw(page, message ? message : "Cannot read /proc/mouse_monitor. Load module first.");
         gtk_label_set_text(GTK_LABEL(page->connected_label), "0");
         g_free(message);
         return;

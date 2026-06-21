@@ -61,7 +61,7 @@ GtkWidget *ui_kernel_log_page_new(AppContext *ctx) {
 
     GtkWidget *toolbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     GtkWidget *refresh = gtk_button_new_with_label("Refresh dmesg");
-    GtkWidget *filter_module = gtk_button_new_with_label("Filter usb_mouse_monitor");
+    GtkWidget *filter_module = gtk_button_new_with_label("Filter mouse_monitor");
     GtkWidget *clear = gtk_button_new_with_label("Clear View");
     page->filter_entry = gtk_search_entry_new();
     gtk_widget_set_hexpand(page->filter_entry, TRUE);

@@ -3,9 +3,9 @@
 
 #include <gtk/gtk.h>
 
-#define MODULE_NAME "usb_mouse_monitor"
-#define DEVICE_PATH "/proc/usb_mouse_monitor"
-#define MODULE_KO_PATH "src/usb_mouse_monitor.ko"
+#define MODULE_NAME "mouse_monitor"
+#define DEVICE_PATH "/proc/mouse_monitor"
+#define MODULE_KO_PATH "src/mouse_monitor.ko"
 
 typedef void (*CommandDoneCallback)(gboolean ok, const char *output, gpointer user_data);
 

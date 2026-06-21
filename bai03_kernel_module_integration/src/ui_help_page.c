@@ -23,14 +23,14 @@ GtkWidget *ui_help_page_new(AppContext *ctx) {
         "6. Unload Module\n\n"
         "Linux commands:\n"
         "make\n"
-        "sudo insmod src/usb_mouse_monitor.ko\n"
-        "dmesg | grep usb_mouse_monitor\n"
-        "cat /proc/usb_mouse_monitor\n"
-        "sudo rmmod usb_mouse_monitor\n\n"
+        "sudo insmod src/mouse_monitor.ko\n"
+        "dmesg | grep mouse_monitor\n"
+        "cat /proc/mouse_monitor\n"
+        "sudo rmmod mouse_monitor\n\n"
         "Notes:\n"
         "- dx/dy are relative movement deltas, not absolute screen coordinates.\n"
-        "- This module registers an input_handler, not a USB driver.\n"
-        "- It reads events from the current Ubuntu mouse/touchpad without unbind/bind.\n"
+        "- This module registers an input_handler.\n"
+        "- It reads events from the current Ubuntu mouse/touchpad.\n"
         "- Module load/unload usually requires sudo/root.";
 
     GtkWidget *view = gtk_text_view_new();

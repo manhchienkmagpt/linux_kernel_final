@@ -8,8 +8,8 @@
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
 
-#define MODULE_TAG "usb_mouse_monitor"
-#define PROC_NAME "usb_mouse_monitor"
+#define MODULE_TAG "mouse_monitor"
+#define PROC_NAME "mouse_monitor"
 #define STATUS_BUF_LEN 256
 
 struct mouse_status {
@@ -26,8 +26,12 @@ struct monitor_handle {
     struct input_handle handle;
     bool abs_x_initialized;
     bool abs_y_initialized;
+    bool mt_x_initialized;
+    bool mt_y_initialized;
     int last_abs_x;
     int last_abs_y;
+    int last_mt_x;
+    int last_mt_y;
 };
 
 static struct proc_dir_entry *proc_entry;
@@ -37,6 +41,11 @@ static int connected_devices;
 static int frame_dx;
 static int frame_dy;
 static int frame_wheel;
+
+static bool has_bit(const unsigned long *bitmap, unsigned int bit)
+{
+    return test_bit(bit, bitmap);
+}
 
 static void set_connected_locked(void)
 {
@@ -54,16 +63,48 @@ static void set_connected_locked(void)
     }
 }
 
+static bool is_pointer_device(struct input_dev *dev)
+{
+    bool relative_mouse;
+    bool absolute_pointer;
+    bool multitouch_pointer;
+    bool pointer_button;
+
+    if (!dev)
+        return false;
+
+    relative_mouse = has_bit(dev->evbit, EV_REL) &&
+                     has_bit(dev->relbit, REL_X) &&
+                     has_bit(dev->relbit, REL_Y);
+
+    absolute_pointer = has_bit(dev->evbit, EV_ABS) &&
+                       has_bit(dev->absbit, ABS_X) &&
+                       has_bit(dev->absbit, ABS_Y);
+
+    multitouch_pointer = has_bit(dev->evbit, EV_ABS) &&
+                         has_bit(dev->absbit, ABS_MT_POSITION_X) &&
+                         has_bit(dev->absbit, ABS_MT_POSITION_Y);
+
+    pointer_button = !has_bit(dev->evbit, EV_KEY) ||
+                     has_bit(dev->keybit, BTN_LEFT) ||
+                     has_bit(dev->keybit, BTN_TOUCH) ||
+                     has_bit(dev->keybit, BTN_TOOL_FINGER);
+
+    return pointer_button && (relative_mouse || absolute_pointer || multitouch_pointer);
+}
+
 static bool is_mouse_event(unsigned int type, unsigned int code)
 {
     if (type == EV_KEY)
-        return code == BTN_LEFT || code == BTN_RIGHT || code == BTN_MIDDLE;
+        return code == BTN_LEFT || code == BTN_RIGHT || code == BTN_MIDDLE ||
+               code == BTN_TOUCH || code == BTN_TOOL_FINGER;
 
     if (type == EV_REL)
         return code == REL_X || code == REL_Y || code == REL_WHEEL;
 
     if (type == EV_ABS)
-        return code == ABS_X || code == ABS_Y;
+        return code == ABS_X || code == ABS_Y ||
+               code == ABS_MT_POSITION_X || code == ABS_MT_POSITION_Y;
 
     return type == EV_SYN && code == SYN_REPORT;
 }
@@ -88,13 +129,13 @@ static void mouse_event(struct input_handle *handle,
                         unsigned int code,
                         int value)
 {
+    struct monitor_handle *monitor;
+    struct mouse_status snapshot;
     unsigned long flags;
     bool button_changed = false;
     bool should_log = false;
-    struct mouse_status snapshot;
-    struct monitor_handle *monitor;
 
-    if (!is_mouse_event(type, code))
+    if (!handle || !is_mouse_event(type, code))
         return;
 
     monitor = container_of(handle, struct monitor_handle, handle);
@@ -105,7 +146,8 @@ static void mouse_event(struct input_handle *handle,
     if (type == EV_KEY) {
         int pressed = value ? 1 : 0;
 
-        if (code == BTN_LEFT && current_status.left != pressed) {
+        if ((code == BTN_LEFT || code == BTN_TOUCH || code == BTN_TOOL_FINGER) &&
+            current_status.left != pressed) {
             current_status.left = pressed;
             button_changed = true;
         } else if (code == BTN_RIGHT && current_status.right != pressed) {
@@ -133,18 +175,28 @@ static void mouse_event(struct input_handle *handle,
                 frame_dy += value - monitor->last_abs_y;
             monitor->last_abs_y = value;
             monitor->abs_y_initialized = true;
+        } else if (code == ABS_MT_POSITION_X) {
+            if (monitor->mt_x_initialized)
+                frame_dx += value - monitor->last_mt_x;
+            monitor->last_mt_x = value;
+            monitor->mt_x_initialized = true;
+        } else if (code == ABS_MT_POSITION_Y) {
+            if (monitor->mt_y_initialized)
+                frame_dy += value - monitor->last_mt_y;
+            monitor->last_mt_y = value;
+            monitor->mt_y_initialized = true;
         }
     } else if (type == EV_SYN && code == SYN_REPORT) {
         current_status.dx = frame_dx;
         current_status.dy = frame_dy;
         current_status.wheel = frame_wheel;
-        should_log = button_changed || frame_dx || frame_dy || frame_wheel;
+        should_log = frame_dx || frame_dy || frame_wheel;
         frame_dx = 0;
         frame_dy = 0;
         frame_wheel = 0;
     }
 
-    if (button_changed && type == EV_KEY) {
+    if (button_changed) {
         current_status.dx = 0;
         current_status.dy = 0;
         current_status.wheel = 0;
@@ -164,12 +216,15 @@ static int mouse_connect(struct input_handler *handler,
                          struct input_dev *dev,
                          const struct input_device_id *id)
 {
-    struct input_handle *handle;
     struct monitor_handle *monitor;
+    struct input_handle *handle;
     unsigned long flags;
     int ret;
 
     (void)id;
+
+    if (!is_pointer_device(dev))
+        return -ENODEV;
 
     monitor = kzalloc(sizeof(*monitor), GFP_KERNEL);
     if (!monitor)
@@ -193,7 +248,7 @@ static int mouse_connect(struct input_handler *handler,
     set_connected_locked();
     spin_unlock_irqrestore(&status_lock, flags);
 
-    pr_info("%s: input mouse connected name=\"%s\" phys=\"%s\"\n",
+    pr_info("%s: pointer connected name=\"%s\" phys=\"%s\"\n",
             MODULE_TAG,
             dev->name ? dev->name : "unknown",
             dev->phys ? dev->phys : "unknown");
@@ -208,9 +263,9 @@ fail_free:
 
 static void mouse_disconnect(struct input_handle *handle)
 {
-    unsigned long flags;
-    struct input_dev *dev = handle ? handle->dev : NULL;
     struct monitor_handle *monitor;
+    struct input_dev *dev = handle ? handle->dev : NULL;
+    unsigned long flags;
 
     if (!handle)
         return;
@@ -226,7 +281,7 @@ static void mouse_disconnect(struct input_handle *handle)
     set_connected_locked();
     spin_unlock_irqrestore(&status_lock, flags);
 
-    pr_info("%s: input mouse disconnected name=\"%s\"\n",
+    pr_info("%s: pointer disconnected name=\"%s\"\n",
             MODULE_TAG,
             dev && dev->name ? dev->name : "unknown");
 
@@ -271,26 +326,7 @@ static const struct proc_ops proc_status_ops = {
 };
 
 static const struct input_device_id mouse_ids[] = {
-    {
-        .flags = INPUT_DEVICE_ID_MATCH_EVBIT |
-                 INPUT_DEVICE_ID_MATCH_KEYBIT |
-                 INPUT_DEVICE_ID_MATCH_RELBIT,
-        .evbit = { BIT_MASK(EV_KEY) | BIT_MASK(EV_REL) },
-        .keybit = { [BIT_WORD(BTN_LEFT)] = BIT_MASK(BTN_LEFT) },
-        .relbit = {
-            [BIT_WORD(REL_X)] = BIT_MASK(REL_X) | BIT_MASK(REL_Y),
-        },
-    },
-    {
-        .flags = INPUT_DEVICE_ID_MATCH_EVBIT |
-                 INPUT_DEVICE_ID_MATCH_KEYBIT |
-                 INPUT_DEVICE_ID_MATCH_ABSBIT,
-        .evbit = { BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS) },
-        .keybit = { [BIT_WORD(BTN_LEFT)] = BIT_MASK(BTN_LEFT) },
-        .absbit = {
-            [BIT_WORD(ABS_X)] = BIT_MASK(ABS_X) | BIT_MASK(ABS_Y),
-        },
-    },
+    { .driver_info = 1 },
     {}
 };
 MODULE_DEVICE_TABLE(input, mouse_ids);
@@ -303,7 +339,7 @@ static struct input_handler mouse_handler = {
     .id_table = mouse_ids,
 };
 
-static int __init usb_mouse_monitor_init(void)
+static int __init mouse_monitor_init(void)
 {
     int ret;
 
@@ -332,7 +368,7 @@ static int __init usb_mouse_monitor_init(void)
     return 0;
 }
 
-static void __exit usb_mouse_monitor_exit(void)
+static void __exit mouse_monitor_exit(void)
 {
     input_unregister_handler(&mouse_handler);
     if (proc_entry)
@@ -340,10 +376,10 @@ static void __exit usb_mouse_monitor_exit(void)
     pr_info("%s unloaded\n", MODULE_TAG);
 }
 
-module_init(usb_mouse_monitor_init);
-module_exit(usb_mouse_monitor_exit);
+module_init(mouse_monitor_init);
+module_exit(mouse_monitor_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Linux Kernel Programming Student");
-MODULE_DESCRIPTION("Current Ubuntu mouse input event monitor");
-MODULE_VERSION("1.1");
+MODULE_DESCRIPTION("Current Ubuntu mouse and touchpad input event monitor");
+MODULE_VERSION("2.0");

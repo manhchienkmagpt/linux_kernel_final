@@ -1,23 +1,23 @@
 # Phan ra chuc nang - Bai 03
 
-## Kernel Module `usb_mouse_monitor`
+## Kernel Module `mouse_monitor`
 
-- File: `src/usb_mouse_monitor.c`
-- Module name: `usb_mouse_monitor`
-- User-space interface: `/proc/usb_mouse_monitor`
+- File: `src/mouse_monitor.c`
+- Module name: `mouse_monitor`
+- User-space interface: `/proc/mouse_monitor`
 - Dang ky `input_handler` de nghe su kien tu chuot/touchpad hien co tren Ubuntu.
 
 ## Module init / exit
 
-- `usb_mouse_monitor_init`:
-  - Tao proc entry `/proc/usb_mouse_monitor`.
+- `mouse_monitor_init`:
+  - Tao proc entry `/proc/mouse_monitor`.
   - Dang ky input handler bang `input_register_handler`.
-  - Log `usb_mouse_monitor loaded`.
+  - Log `mouse_monitor loaded`.
 
-- `usb_mouse_monitor_exit`:
+- `mouse_monitor_exit`:
   - Huy input handler bang `input_unregister_handler`.
   - Xoa proc entry.
-  - Log `usb_mouse_monitor unloaded`.
+  - Log `mouse_monitor unloaded`.
 
 ## Input connect / disconnect
 
@@ -54,7 +54,7 @@
 Log format:
 
 ```text
-[usb_mouse_monitor] left=1 right=0 middle=0 dx=5 dy=-2 wheel=0
+[mouse_monitor] left=1 right=0 middle=0 dx=5 dy=-2 wheel=0
 ```
 
 ## Proc status
@@ -62,7 +62,7 @@ Log format:
 Doc:
 
 ```bash
-cat /proc/usb_mouse_monitor
+cat /proc/mouse_monitor
 ```
 
 Tra ve:
@@ -87,12 +87,12 @@ wheel=0
 
 ## GUI Mouse Status
 
-- Refresh Status doc `/proc/usb_mouse_monitor`.
+- Refresh Status doc `/proc/mouse_monitor`.
 - Hien Connected, Left, Right, Middle, dx, dy, Wheel.
 - TextView hien raw status.
 
 ## GUI Event Log
 
 - Refresh dmesg.
-- Filter `usb_mouse_monitor`.
+- Filter `mouse_monitor`.
 - Clear View.

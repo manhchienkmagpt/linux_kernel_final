@@ -2,20 +2,17 @@
 
 ## Tong quan
 
-Bai 03 la **Ubuntu Mouse Monitor**. Kernel module `usb_mouse_monitor` theo doi su kien chuot hien co tren Ubuntu thong qua Linux input subsystem va GUI GTK hien trang thai chuot.
+Bai 03 la **Ubuntu Mouse Monitor**. Kernel module `mouse_monitor` theo doi su kien chuot hien co tren Ubuntu thong qua Linux input subsystem va GUI GTK hien trang thai chuot.
 
 ## Vi sao dung input_handler
 
-Ban truoc dung `usb_driver`, nen module chi doc duoc chuot USB khi bind truc tiep vao thiet bi. Tren Ubuntu, chuot USB thuong da do `usbhid` quan ly, vi vay phai unbind/bind thu cong va co the lam chuot tam thoi mat tac dung.
+Input subsystem cho phep module dang ky mot handler de nghe event tu device chuot/touchpad da ton tai, vi vay:
 
-Ban hien tai dung `input_handler`. Input subsystem cho phep module dang ky mot handler de nghe event tu device da ton tai, vi vay:
-
-- Khong can chiem quyen cua `usbhid`.
 - Khong can hook syscall.
-- Co the nghe chuot USB, touchpad hoac thiet bi input tuong thich.
+- Co the nghe chuot thuong, touchpad hoac thiet bi input tuong thich.
 - Cleanup ro rang bang API kernel chuan.
 
-## `src/usb_mouse_monitor.c`
+## `src/mouse_monitor.c`
 
 ### Match input device
 
@@ -56,7 +53,7 @@ Day la dau hieu cua mot thiet bi co hanh vi giong chuot/touchpad.
 Module tao:
 
 ```text
-/proc/usb_mouse_monitor
+/proc/mouse_monitor
 ```
 
 `proc_status_read` tra ve status hien tai theo dang key=value.
@@ -66,9 +63,9 @@ Module tao:
 `kernel_module_commands.c`:
 
 - `module_is_loaded`: doc `/proc/modules`.
-- `device_exists`: kiem tra `/proc/usb_mouse_monitor`.
+- `device_exists`: kiem tra `/proc/mouse_monitor`.
 - `read_mouse_status`: doc proc status va parse connected/left/right/middle/dx/dy/wheel.
-- `last_mouse_event`: doc `dmesg | grep usb_mouse_monitor`.
+- `last_mouse_event`: doc `dmesg | grep mouse_monitor`.
 - `run_command_async_sudo`: load/unload module co dialog sudo.
 
 ## GUI pages

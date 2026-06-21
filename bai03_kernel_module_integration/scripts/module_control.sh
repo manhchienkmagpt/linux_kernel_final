@@ -2,10 +2,10 @@
 set -u
 
 cmd="${1:-}"
-module_name="usb_mouse_monitor"
+module_name="mouse_monitor"
 script_path="$(readlink -f "$0")"
 project_dir="$(cd "$(dirname "$script_path")/.." && pwd)"
-ko_path="$project_dir/src/usb_mouse_monitor.ko"
+ko_path="$project_dir/src/mouse_monitor.ko"
 
 need_root() {
   if [[ "$(id -u)" -ne 0 ]]; then
@@ -39,7 +39,7 @@ case "$cmd" in
   status)
     if lsmod | grep -q "^${module_name}"; then
       lsmod | grep "^${module_name}"
-      [[ -e /proc/usb_mouse_monitor ]] && ls -l /proc/usb_mouse_monitor
+      [[ -e /proc/mouse_monitor ]] && ls -l /proc/mouse_monitor
     else
       echo "$module_name is not loaded."
     fi

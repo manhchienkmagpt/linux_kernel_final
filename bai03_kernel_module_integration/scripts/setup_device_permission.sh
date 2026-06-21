@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-device="/proc/usb_mouse_monitor"
+device="/proc/mouse_monitor"
 
 if [[ ! -e "$device" ]]; then
   echo "$device does not exist. Load the module first." >&2
