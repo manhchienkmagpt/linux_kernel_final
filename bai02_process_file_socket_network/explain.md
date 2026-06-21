@@ -200,9 +200,10 @@ Khi nguoi dung chon mot process va bam Kill:
 
 1. UI lay PID cua row dang chon.
 2. Mo dialog xac nhan.
-3. Neu dong y, goi `kill_process_by_pid(pid, &message)`.
-4. Backend goi `kill(pid, SIGTERM)`.
-5. UI hien ket qua va refresh list.
+3. Neu PID la chinh app dang chay hoac parent process cua app, UI tu choi kill de tranh tat chuong trinh bai 2.
+4. Neu dong y, goi `kill_process_by_pid(pid, &message)`.
+5. Backend goi `kill(pid, SIGTERM)`.
+6. UI hien ket qua va refresh list.
 
 `SIGTERM` la tin hieu yeu cau process ket thuc mot cach lich su. Khong dung `SIGKILL` mac dinh vi `SIGKILL` qua manh va process khong co co hoi don dep.
 
@@ -228,6 +229,8 @@ Co 3 option cong viec:
 - `Idle only`: process con chi song nen va ngu theo chu ky, khong ghi file.
 
 Ben trong child, code dat ten process bang `prctl(PR_SET_NAME, ...)`, nen trong bang Processes co the thay ten nhu `child_date`, `child_beat`, `child_idle`. Parent khong `waitpid()` ngay nua, vi neu wait thi UI se bi dung cho den khi child ket thuc. Thay vao do, child tiep tuc chay cho den khi user chon PID trong UI va bam `Kill Process`.
+
+Sau khi tao child, o tim kiem cua Process Page tu dien `child_` de bang chi hien cac process con demo. Viec nay giup tranh chon nham PID cua app chinh.
 
 Parent dat `SIGCHLD` thanh `SIG_IGN` de Linux tu thu gom child sau khi no bi kill, tranh tao zombie process.
 

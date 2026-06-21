@@ -32,6 +32,14 @@ int kill_process_by_pid(pid_t pid, char **error_message) {
         *error_message = g_strdup("PID must be greater than 0.");
         return -1;
     }
+    if (pid == getpid()) {
+        *error_message = g_strdup_printf("Refused to kill PID %d because it is the running application.", pid);
+        return -1;
+    }
+    if (pid == getppid()) {
+        *error_message = g_strdup_printf("Refused to kill PID %d because it is the parent process of this application.", pid);
+        return -1;
+    }
     if (kill(pid, SIGTERM) == -1) {
         *error_message = g_strdup_printf("kill failed: %s", strerror(errno));
         return -1;

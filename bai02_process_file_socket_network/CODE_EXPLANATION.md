@@ -40,6 +40,7 @@ Process Page giong Task Manager:
 - State doc tu `/proc/<pid>/stat`.
 - Search loc theo PID hoac name.
 - Kill Process mo dialog xac nhan roi goi `kill_process_by_pid`.
+- Kill Process tu choi kill PID cua chinh app va PID parent cua app de tranh tat chuong trinh dang demo.
 - Create Child Process mo dialog nhap so luong, chon task, file output, interval va goi `fork_child_task`.
 
 ## `src/ui_file_page.c`

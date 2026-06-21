@@ -2,6 +2,7 @@
 #include "process_utils.h"
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 typedef struct {
     AppContext *ctx;
@@ -126,6 +127,14 @@ static void on_kill(GtkButton *button, gpointer user_data) {
         log_page_append(page->ctx->log_page, "ERROR", "Select a process before killing.");
         return;
     }
+    if (pid == getpid()) {
+        log_page_append(page->ctx->log_page, "ERROR", "Cannot kill this application from its own UI.");
+        return;
+    }
+    if (pid == getppid()) {
+        log_page_append(page->ctx->log_page, "ERROR", "Cannot kill the parent process of this application.");
+        return;
+    }
     GtkWidget *dialog = gtk_dialog_new_with_buttons("Confirm Kill Process", GTK_WINDOW(page->ctx->window),
         GTK_DIALOG_MODAL, "Cancel", GTK_RESPONSE_CANCEL, "Kill", GTK_RESPONSE_ACCEPT, NULL);
     char *msg = g_strdup_printf("Send SIGTERM to PID %d?", pid);
@@ -161,6 +170,7 @@ static void on_child_response(GtkDialog *dialog, int response, gpointer user_dat
             log_page_append(page->ctx->log_page, "OK", msg);
             g_free(msg);
         }
+        gtk_editable_set_text(GTK_EDITABLE(page->search_entry), "child_");
         refresh_processes(page);
     }
     gtk_window_destroy(GTK_WINDOW(dialog));
