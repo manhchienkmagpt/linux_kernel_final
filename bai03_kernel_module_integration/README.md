@@ -1,34 +1,47 @@
-# Bai 03 - Kernel Module Integration
+# Bai 03 - Linux Kernel Module Control Center
 
 ## Muc tieu
 
-Xay dung Linux Kernel Module dang character device va ung dung GTK user-space de load/unload module, doc/ghi device `/dev/simple_kmod`, xem log kernel va kiem tra trang thai module.
+Xay dung Linux Kernel Module dang character device va ung dung GTK4 de demo load/unload module, doc/ghi `/dev/simple_kmod`, xem log kernel va kiem tra trang thai module.
+
+## Giao dien
+
+- `GtkApplicationWindow`
+- HeaderBar: **Linux Kernel Module Control Center**
+- Sidebar ben trai bang `GtkStackSidebar`
+- Noi dung ben phai bang `GtkStack`
+- Cac trang:
+  - Dashboard
+  - Module Control
+  - Device I/O
+  - Kernel Log
+  - Help
 
 ## Chuc nang chinh
 
-- Kernel module co `init`, `exit`, `open`, `read`, `write`, `release`.
-- Khi load module, tu dong tao class/device `/dev/simple_kmod`.
-- Ghi log bang `printk`.
-- App GTK co nut:
-  - Load module bang `insmod`.
-  - Unload module bang `rmmod`.
-  - Check module bang `lsmod`.
-  - Xem log lien quan bang `dmesg`.
-  - Ghi du lieu vao `/dev/simple_kmod`.
-  - Doc du lieu tu `/dev/simple_kmod`.
-- Script setup quyen device bang `chmod`.
+- Dashboard hien Module Status, Device File, Device Status, Kernel Version, Last Action.
+- Module Control co Build Module, Load Module, Unload Module, Check Status, Clean Build.
+- Load/Unload co dialog xac nhan vi can quyen sudo/root.
+- Device I/O cho ghi/doc `/dev/simple_kmod`, bao loi ro neu device missing.
+- Kernel Log co Refresh dmesg, Filter Module Log, Search, Clear View.
+- Help hien cac buoc demo va lenh Linux tuong ung.
 
-## Cau truc thu muc
+## Cau truc source
 
 ```text
 bai03_kernel_module_integration/
 ├── src/
-│   ├── Makefile
+│   ├── main.c
+│   ├── ui_main_window.c/.h
+│   ├── ui_dashboard_page.c/.h
+│   ├── ui_module_control_page.c/.h
+│   ├── ui_device_io_page.c/.h
+│   ├── ui_kernel_log_page.c/.h
+│   ├── ui_help_page.c/.h
+│   ├── kernel_module_commands.c/.h
 │   ├── simple_kmod.c
-│   └── main.c
+│   └── Makefile
 ├── scripts/
-│   ├── module_control.sh
-│   └── setup_device_permission.sh
 ├── docs/
 ├── Makefile
 ├── README.md
@@ -40,7 +53,7 @@ bai03_kernel_module_integration/
 
 ```bash
 sudo apt update
-sudo apt install build-essential pkg-config libgtk-3-dev linux-headers-$(uname -r) kmod
+sudo apt install build-essential pkg-config libgtk-4-dev linux-headers-$(uname -r) kmod
 ```
 
 ## Build
@@ -57,7 +70,13 @@ Lenh nay build ca GTK app va kernel module `src/simple_kmod.ko`.
 make run
 ```
 
-Load/unload module can quyen root. Trong app co the goi script bang `pkexec` neu he thong co policykit, hoac chay app bang sudo:
+Hoac:
+
+```bash
+./bin/kernel_module_gtk
+```
+
+Load/unload module can quyen root. Co the chay app bang sudo:
 
 ```bash
 sudo ./bin/kernel_module_gtk
@@ -65,23 +84,11 @@ sudo ./bin/kernel_module_gtk
 
 ## Demo
 
-1. Build bang `make`.
-2. Mo app bang `sudo ./bin/kernel_module_gtk`.
-3. Bam **Load Module**.
-4. Bam **Check Status** de thay `simple_kmod` da load.
-5. Nhap text va bam **Write Device**.
-6. Bam **Read Device** de doc lai du lieu.
-7. Bam **Kernel Logs** de xem log `dmesg`.
-8. Bam **Unload Module** sau khi demo xong.
-
-## Kiem tra thu cong
-
-```bash
-sudo insmod src/simple_kmod.ko
-lsmod | grep simple_kmod
-ls -l /dev/simple_kmod
-echo "hello" | sudo tee /dev/simple_kmod
-sudo cat /dev/simple_kmod
-sudo dmesg | tail -30
-sudo rmmod simple_kmod
-```
+1. Mo Dashboard va bam Refresh.
+2. Vao Module Control, bam Build Module.
+3. Bam Load Module va xac nhan.
+4. Bam Check Status.
+5. Vao Device I/O, ghi data vao `/dev/simple_kmod`.
+6. Bam Read from Device de doc lai.
+7. Vao Kernel Log, bam Filter Module Log.
+8. Quay lai Module Control va Unload Module.

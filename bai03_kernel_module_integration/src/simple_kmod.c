@@ -1,5 +1,4 @@
 #include <linux/cdev.h>
-#include <linux/class.h>
 #include <linux/device.h>
 #include <linux/fs.h>
 #include <linux/init.h>
