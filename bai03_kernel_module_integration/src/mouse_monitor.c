@@ -89,6 +89,23 @@ static bool is_pointer_device(struct input_dev *dev)
     return relative_mouse || absolute_pointer || multitouch_pointer;
 }
 
+static void log_device_probe(struct input_dev *dev, bool accepted)
+{
+    if (!dev)
+        return;
+
+    pr_info("%s: input device %s name=\"%s\" ev_rel=%d rel_xy=%d ev_abs=%d abs_xy=%d mt_xy=%d\n",
+            MODULE_TAG,
+            accepted ? "accepted" : "ignored",
+            dev->name ? dev->name : "unknown",
+            has_bit(dev->evbit, EV_REL) ? 1 : 0,
+            (has_bit(dev->relbit, REL_X) && has_bit(dev->relbit, REL_Y)) ? 1 : 0,
+            has_bit(dev->evbit, EV_ABS) ? 1 : 0,
+            (has_bit(dev->absbit, ABS_X) && has_bit(dev->absbit, ABS_Y)) ? 1 : 0,
+            (has_bit(dev->absbit, ABS_MT_POSITION_X) &&
+             has_bit(dev->absbit, ABS_MT_POSITION_Y)) ? 1 : 0);
+}
+
 static bool is_mouse_event(unsigned int type, unsigned int code)
 {
     if (type == EV_KEY)
@@ -216,10 +233,13 @@ static int mouse_connect(struct input_handler *handler,
     struct input_handle *handle;
     unsigned long flags;
     int ret;
+    bool accepted;
 
     (void)id;
 
-    if (!is_pointer_device(dev))
+    accepted = is_pointer_device(dev);
+    log_device_probe(dev, accepted);
+    if (!accepted)
         return -ENODEV;
 
     monitor = kzalloc(sizeof(*monitor), GFP_KERNEL);
