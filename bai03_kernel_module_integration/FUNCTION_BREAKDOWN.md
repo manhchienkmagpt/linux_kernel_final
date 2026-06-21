@@ -1,62 +1,92 @@
 # Phan ra chuc nang - Bai 03
 
-## Kernel module character device
+## Kernel Module `access_monitor`
 
-- `simple_init`: dang ky major/minor bang `alloc_chrdev_region`, khoi tao `cdev`, tao class va device `/dev/simple_kmod`.
-- `simple_exit`: huy device, class, cdev va unregister device number.
-- `simple_open`: log khi user-space mo device.
-- `simple_read`: copy du lieu tu kernel buffer sang user buffer bang `copy_to_user`.
-- `simple_write`: copy du lieu tu user buffer vao kernel buffer bang `copy_from_user`.
-- `simple_release`: log khi dong device.
+- File: `src/access_monitor.c`
+- Module name: `access_monitor`
+- Device config: `/dev/access_monitor`
+- Protected path mac dinh: `/tmp/protected`
+- Module parameter:
 
-## Main Window
+```bash
+sudo insmod src/access_monitor.ko protected_path=/tmp/protected
+```
 
-- `main.c`: tao `GtkApplication`.
-- `ui_main_window.c`: tao `GtkApplicationWindow`, HeaderBar, `GtkStackSidebar` va `GtkStack`.
-- Sidebar gom Dashboard, Module Control, Device I/O, Kernel Log, Help.
+## Module init / exit
 
-## Dashboard Page
+- `access_monitor_init`:
+  - Tao character device `/dev/access_monitor`.
+  - Dang ky kprobe cho `vfs_write`.
+  - Dang ky kprobe cho `vfs_unlink`.
+  - Log `access_monitor loaded`.
 
-- Hien Module Status: Loaded / Not Loaded.
-- Hien Device File: `/dev/simple_kmod`.
-- Hien Device Status: Exists / Missing.
-- Hien Kernel Version.
-- Hien Last Action.
-- Nut Refresh cap nhat lai thong tin.
+- `access_monitor_exit`:
+  - Huy kprobe.
+  - Huy device/class/cdev.
+  - Log `access_monitor unloaded`.
 
-## Module Control Page
+## Kprobe Monitor
+
+- WRITE:
+  - Kprobe gan vao `vfs_write`.
+  - Lay `struct file *`.
+  - Dung `d_path` de lay path.
+  - Neu path nam trong protected path thi log event.
+
+- DELETE:
+  - Kprobe gan vao `vfs_unlink`.
+  - Lay `struct dentry *`.
+  - Dung `dentry_path_raw` de lay path.
+  - Neu path nam trong protected path thi log event.
+
+## Protected Path
+
+- Luu trong buffer gioi han `PATH_MAX_LEN`.
+- Co spinlock bao ve khi doc/ghi de phu hop ngu canh kprobe.
+- Co the cau hinh luc load module bang module parameter.
+- Co the doi khi dang chay bang ghi vao `/dev/access_monitor`.
+
+## Event Logging
+
+- Log format:
+
+```text
+[access_monitor] PID=... COMM=... ACTION=WRITE PATH=...
+[access_monitor] PID=... COMM=... ACTION=DELETE PATH=...
+```
+
+- `PID`: process id.
+- `COMM`: ten process.
+- `ACTION`: WRITE hoac DELETE.
+- `PATH`: duong dan file neu lay duoc.
+
+## GUI Module Control
 
 - Build Module: chay `make module`.
-- Load Module: xac nhan roi chay `scripts/module_control.sh load`.
-- Unload Module: xac nhan roi chay `scripts/module_control.sh unload`.
+- Load Module: chay `scripts/module_control.sh load`.
+- Unload Module: chay `scripts/module_control.sh unload`.
 - Check Status: chay `scripts/module_control.sh status`.
 - Clean Build: chay `make clean`.
-- Command chay bang thread nen UI khong bi treo.
-- Output hien trong `GtkTextView`.
+- Lenh sudo se hien dialog nhap mat khau neu can.
 
-## Device I/O Page
+## GUI Monitor Config
 
-- Hien device path `/dev/simple_kmod`.
-- Write to Device goi backend user-space `write_device_data`.
-- Read from Device goi `read_device_data`.
-- Neu device missing thi hien loi ro rang.
-- Clear Input xoa entry.
-- Refresh Device Status cap nhat trang thai device file.
+- Nhap protected path.
+- Set Protected Path: ghi path vao `/dev/access_monitor`.
+- Read Current Path: doc path hien tai tu `/dev/access_monitor`.
+- Create Test File: tao `/tmp/protected/test.txt`.
+- Write Test File: ghi data vao file test de tao event WRITE.
+- Delete Test File: xoa file test de tao event DELETE.
 
-## Kernel Log Page
+## GUI Event Log
 
-- Refresh dmesg: doc `dmesg | tail -200`.
-- Filter Module Log: chi hien dong co `simple_kmod`.
-- Search/Filter loc theo tu khoa.
-- Clear View xoa man hinh log.
-- Label hien so dong log dang xem.
-
-## Help Page
-
-- Hien cac buoc demo.
-- Hien cac lenh Linux tuong ung: make, insmod, lsmod, echo/cat device, dmesg, rmmod.
-
-## Backend user-space
-
-- `kernel_module_commands.c/.h`: gom cac ham check module, check device, lay kernel version, chay command sync/async, doc/ghi device, doc kernel log.
-- `scripts/module_control.sh`: load/unload/status/dmesg module.
+- Refresh dmesg: doc log kernel.
+- Filter access_monitor: chi hien event cua module.
+- Search: loc theo tu khoa.
+- Clear View: xoa man hinh log.
+- Hien theo cot:
+  - Time
+  - PID
+  - Process
+  - Action
+  - Path

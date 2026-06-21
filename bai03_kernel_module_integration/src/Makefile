@@ -1,1 +1,1 @@
-obj-m += simple_kmod.o
+obj-m += access_monitor.o

@@ -2,10 +2,11 @@
 set -u
 
 cmd="${1:-}"
-module_name="simple_kmod"
+module_name="access_monitor"
 script_path="$(readlink -f "$0")"
 project_dir="$(cd "$(dirname "$script_path")/.." && pwd)"
-ko_path="$project_dir/src/simple_kmod.ko"
+ko_path="$project_dir/src/access_monitor.ko"
+protected_path="${2:-/tmp/protected}"
 
 need_root() {
   if [[ "$(id -u)" -ne 0 ]]; then
@@ -19,13 +20,14 @@ need_root() {
 
 case "$cmd" in
   load)
-    need_root "$cmd"
+    need_root "$cmd" "$protected_path"
     if lsmod | grep -q "^${module_name}"; then
       echo "$module_name is already loaded."
       exit 0
     fi
-    insmod "$ko_path"
-    echo "Loaded $ko_path"
+    mkdir -p "$protected_path"
+    insmod "$ko_path" protected_path="$protected_path"
+    echo "Loaded $ko_path protected_path=$protected_path"
     ;;
   unload)
     need_root "$cmd"
@@ -39,7 +41,7 @@ case "$cmd" in
   status)
     if lsmod | grep -q "^${module_name}"; then
       lsmod | grep "^${module_name}"
-      [[ -e /dev/simple_kmod ]] && ls -l /dev/simple_kmod
+      [[ -e /dev/access_monitor ]] && ls -l /dev/access_monitor
     else
       echo "$module_name is not loaded."
     fi

@@ -75,7 +75,7 @@ static void on_load(GtkButton *button, gpointer user_data) {
 
 static void on_unload(GtkButton *button, gpointer user_data) {
     (void)button;
-    confirm_command(user_data, "Confirm Unload Module", "Unload module may affect /dev/simple_kmod. Continue?", "bash scripts/module_control.sh unload");
+    confirm_command(user_data, "Confirm Unload Module", "Unload access_monitor and stop file monitoring. Continue?", "bash scripts/module_control.sh unload");
 }
 
 GtkWidget *ui_module_control_page_new(AppContext *ctx) {

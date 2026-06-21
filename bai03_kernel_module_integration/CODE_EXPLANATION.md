@@ -1,85 +1,101 @@
 # Giai thich code - Bai 03
 
-## Kernel module la gi
+## Tong quan
 
-Kernel module la doan code co the nap vao Linux kernel khi he thong dang chay. Trong bai nay module tao character device `/dev/simple_kmod` de user-space doc/ghi du lieu.
+Bai 03 da duoc nang cap thanh **Linux File Access Monitor**. Kernel module `access_monitor` theo doi thao tac ghi/xoa file trong protected path va ghi event vao kernel log.
 
-## Character device la gi
+## Kprobe la gi
 
-Character device trao doi du lieu theo dong byte. User-space dung `open`, `read`, `write`, `close`; kernel module cung cap cac callback tuong ung trong `struct file_operations`.
+Kprobe la co che cua Linux kernel cho phep gan handler vao mot ham kernel de quan sat khi ham do duoc goi. Trong bai nay module dung:
 
-## `src/simple_kmod.c`
+- `vfs_write`: theo doi thao tac ghi file.
+- `vfs_unlink`: theo doi thao tac xoa file.
 
-- `simple_init`: dang ky device number, add `cdev`, tao class/device `/dev/simple_kmod`.
-- `simple_exit`: huy device va giai phong tai nguyen.
-- `simple_open`: ghi log khi device duoc mo.
-- `simple_read`: dung `copy_to_user`.
-- `simple_write`: dung `copy_from_user`.
-- `simple_release`: ghi log khi dong device.
+Khi cac ham nay duoc kernel goi, pre-handler cua module chay va lay thong tin process/path.
 
-## `src/main.c`
+## Vi sao khong hook syscall table
 
-Tao `GtkApplication` va goi `ui_main_window_new` khi app activate.
+Hook syscall table truc tiep nguy hiem va khong phu hop kernel hien dai:
 
-## `src/ui_main_window.c`
+- syscall table thuong duoc bao ve read-only.
+- de gay crash kernel neu sai dia chi/hook sai.
+- bi xem la ky thuat rootkit.
+- kem tuong thich giua cac ban kernel.
 
-Tao giao dien chinh GTK4:
+Kprobe la co che duoc kernel ho tro san, phu hop hon cho quan sat va demo.
 
-- `GtkApplicationWindow`
-- `GtkHeaderBar`
-- `GtkPaned`
-- `GtkStackSidebar`
-- `GtkStack`
+## `src/access_monitor.c`
 
-Moi page duoc them vao stack bang `gtk_stack_add_titled`.
+### Init / Exit
 
-## `src/ui_dashboard_page.c`
+- `access_monitor_init` tao `/dev/access_monitor`, dang ky kprobe `vfs_write` va `vfs_unlink`, log `access_monitor loaded`.
+- `access_monitor_exit` huy kprobe, huy device, log `access_monitor unloaded`.
 
-Dashboard doc trang thai tu `kernel_module_commands.c`:
+### Protected path
 
-- `module_is_loaded`
-- `device_exists`
-- `kernel_version_string`
+Protected path luu trong buffer `protected_path`, mac dinh `/tmp/protected`.
 
-Ket qua hien trong cac card de giang vien nhin nhanh trang thai module.
+Co the truyen khi load module:
 
-## `src/ui_module_control_page.c`
+```bash
+sudo insmod src/access_monitor.ko protected_path=/tmp/protected
+```
 
-Trang dieu khien module co cac nut Build, Load, Unload, Status, Clean. Load/Unload mo dialog xac nhan. Command duoc chay nen bang `run_command_async`, sau khi xong callback cap nhat TextView output.
+Co the doi khi module dang chay bang:
 
-## `src/ui_device_io_page.c`
+```bash
+echo "/path/can/bao/ve" | sudo tee /dev/access_monitor
+```
 
-Trang nay thao tac character device:
+### Phat hien WRITE
 
-- Write goi `write_device_data`.
-- Read goi `read_device_data`.
-- Neu `/dev/simple_kmod` chua ton tai thi hien loi.
-- Neu input rong khi write thi hoi xac nhan.
+Kprobe tren `vfs_write` lay `struct file *`, sau do dung `d_path(&file->f_path, ...)` de lay duong dan file. Neu path bat dau bang protected path thi log:
 
-## `src/ui_kernel_log_page.c`
+```text
+[access_monitor] PID=... COMM=... ACTION=WRITE PATH=...
+```
 
-Trang log doc `dmesg | tail -200`, co nut filter theo `simple_kmod`, search keyword va clear view. TextView dung monospace de de doc log kernel.
+### Phat hien DELETE
 
-## `src/ui_help_page.c`
+Kprobe tren `vfs_unlink` lay `struct dentry *`, sau do dung `dentry_path_raw` de lay path. Neu path thuoc protected path thi log:
 
-Hien quy trinh demo va cac lenh Linux tuong ung: `make`, `insmod`, `lsmod`, ghi/doc device, `dmesg`, `rmmod`.
+```text
+[access_monitor] PID=... COMM=... ACTION=DELETE PATH=...
+```
 
-## `src/kernel_module_commands.c`
+### Printk va dmesg
 
-Day la lop backend user-space cho UI:
+Module dung `pr_info` de ghi log kernel. User-space xem log bang:
 
-- `run_command_sync`: chay command va gom stdout/stderr.
-- `run_command_async`: chay command trong thread de UI khong bi treo.
+```bash
+dmesg | grep access_monitor
+```
+
+## Character device `/dev/access_monitor`
+
+Device nay khong phai noi luu data demo nua. No la kenh cau hinh:
+
+- `read`: doc protected path hien tai.
+- `write`: doi protected path.
+- `open/release`: ghi log debug.
+
+## GUI goi lenh nhu the nao
+
+File `kernel_module_commands.c` la backend user-space:
+
+- `run_command_async`: chay lenh trong thread de UI khong treo.
+- `run_command_async_sudo`: hien dialog mat khau sudo neu can.
 - `module_is_loaded`: doc `/proc/modules`.
-- `device_exists`: kiem tra `/dev/simple_kmod`.
-- `read_device_data`, `write_device_data`: dung `open/read/write/close`.
-- `read_kernel_log`: doc va loc `dmesg`.
+- `device_exists`: kiem tra `/dev/access_monitor`.
+- `read_protected_path`: doc `/dev/access_monitor`.
+- `set_protected_path`: ghi path vao `/dev/access_monitor`.
+- `create_test_file`, `write_test_file`, `delete_test_file`: tao event de demo.
+- `read_kernel_log_sudo`: doc `dmesg`, co fallback sudo.
 
-## `scripts/module_control.sh`
+## GUI Pages
 
-Script van giu vai tro load/unload/status module:
-
-- `insmod src/simple_kmod.ko`
-- `rmmod simple_kmod`
-- `lsmod`
-- `dmesg`
+- Dashboard: hien module status, protected path, last event, total events.
+- Module Control: build/load/unload/status/clean.
+- Monitor Config: set/read protected path va thao tac file test.
+- Event Log: parse log access_monitor thanh cot Time/PID/Process/Action/Path.
+- Help: huong dan demo bang terminal va GUI.

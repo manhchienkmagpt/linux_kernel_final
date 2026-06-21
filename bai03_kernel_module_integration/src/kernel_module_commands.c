@@ -249,6 +249,21 @@ static char *strip_command_echo(char *text) {
     return g_strdup(text);
 }
 
+static char *sudo_password_for_device(GtkWindow *parent, gboolean *cancelled);
+
+static char *run_sudo_command_with_prompt(GtkWindow *parent, const char *command, gboolean *ok) {
+    gboolean cancelled = FALSE;
+    char *password = sudo_password_for_device(parent, &cancelled);
+    if (cancelled) {
+        if (ok) *ok = FALSE;
+        return g_strdup("Sudo password prompt was cancelled.");
+    }
+
+    char *raw = run_command_sync_internal(command, TRUE, password, ok);
+    g_free(password);
+    return raw;
+}
+
 static char *sudo_password_for_device(GtkWindow *parent, gboolean *cancelled) {
     if (cancelled) *cancelled = FALSE;
     if (geteuid() == 0 || sudo_has_cached_credentials()) return NULL;
@@ -318,6 +333,89 @@ char *write_device_data_sudo(GtkWindow *parent, const char *text, gboolean *ok) 
     g_free(quoted_text);
     g_free(password);
     return message;
+}
+
+char *read_protected_path(GtkWindow *parent, gboolean *ok) {
+    char *path = read_device_data_sudo(parent, ok);
+    g_strstrip(path);
+    return path;
+}
+
+char *set_protected_path(GtkWindow *parent, const char *path, gboolean *ok) {
+    if (!path || !*path || path[0] != '/') {
+        if (ok) *ok = FALSE;
+        return g_strdup("Protected path must be an absolute path.");
+    }
+    return write_device_data_sudo(parent, path, ok);
+}
+
+static char *test_file_path(const char *protected_path) {
+    const char *base = (protected_path && *protected_path) ? protected_path : "/tmp/protected";
+    return g_build_filename(base, "test.txt", NULL);
+}
+
+char *create_test_file(GtkWindow *parent, const char *protected_path, gboolean *ok) {
+    char *path = test_file_path(protected_path);
+    char *dir = g_path_get_dirname(path);
+    char *qdir = g_shell_quote(dir);
+    char *qpath = g_shell_quote(path);
+    char *command = g_strdup_printf("mkdir -p %s && touch %s", qdir, qpath);
+    char *raw = run_sudo_command_with_prompt(parent, command, ok);
+    char *result = (*ok) ? g_strdup_printf("Created test file: %s", path) : g_strdup(raw);
+    g_free(raw);
+    g_free(command);
+    g_free(qpath);
+    g_free(qdir);
+    g_free(dir);
+    g_free(path);
+    return result;
+}
+
+char *write_test_file(GtkWindow *parent, const char *protected_path, gboolean *ok) {
+    char *path = test_file_path(protected_path);
+    char *text = g_shell_quote("hello from access_monitor GUI\n");
+    char *qpath = g_shell_quote(path);
+    char *command = g_strdup_printf("printf %%s %s >> %s", text, qpath);
+    char *raw = run_sudo_command_with_prompt(parent, command, ok);
+    char *result = (*ok) ? g_strdup_printf("Wrote test data to: %s", path) : g_strdup(raw);
+    g_free(raw);
+    g_free(command);
+    g_free(qpath);
+    g_free(text);
+    g_free(path);
+    return result;
+}
+
+char *delete_test_file(GtkWindow *parent, const char *protected_path, gboolean *ok) {
+    char *path = test_file_path(protected_path);
+    char *qpath = g_shell_quote(path);
+    char *command = g_strdup_printf("rm -f %s", qpath);
+    char *raw = run_sudo_command_with_prompt(parent, command, ok);
+    char *result = (*ok) ? g_strdup_printf("Deleted test file: %s", path) : g_strdup(raw);
+    g_free(raw);
+    g_free(command);
+    g_free(qpath);
+    g_free(path);
+    return result;
+}
+
+char *last_access_event(int *total_events) {
+    gboolean ok = FALSE;
+    char *raw = run_command_sync("dmesg | grep access_monitor | tail -50", &ok);
+    char **lines = g_strsplit(raw ? raw : "", "\n", -1);
+    char *last = g_strdup("No events yet");
+    int count = 0;
+
+    for (int i = 0; lines[i]; i++) {
+        if (!g_strstr_len(lines[i], -1, "[access_monitor]")) continue;
+        g_free(last);
+        last = g_strdup(lines[i]);
+        count++;
+    }
+    if (total_events) *total_events = count;
+    g_strfreev(lines);
+    g_free(raw);
+    return last;
 }
 
 static char *filter_kernel_log(const char *raw, gboolean module_only, const char *filter, int *line_count) {

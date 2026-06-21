@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-device="/dev/simple_kmod"
+device="/dev/access_monitor"
 
 if [[ ! -e "$device" ]]; then
   echo "$device does not exist. Load the module first." >&2

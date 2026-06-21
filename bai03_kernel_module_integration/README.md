@@ -1,52 +1,56 @@
-# Bai 03 - Linux Kernel Module Control Center
+# Bai 03 - Linux File Access Monitor
 
 ## Muc tieu
 
-Xay dung Linux Kernel Module dang character device va ung dung GTK4 de demo load/unload module, doc/ghi `/dev/simple_kmod`, xem log kernel va kiem tra trang thai module.
+Project nay xay dung Linux Kernel Module `access_monitor` va ung dung GTK4 de demo mot mini File Access Monitor / Security Monitor.
+
+Module theo doi thao tac ghi va xoa file trong mot protected path, mac dinh:
+
+```text
+/tmp/protected
+```
+
+Khi co process ghi hoac xoa file trong protected path, module ghi log vao kernel bang `printk/pr_info`:
+
+```text
+[access_monitor] PID=... COMM=... ACTION=WRITE PATH=...
+[access_monitor] PID=... COMM=... ACTION=DELETE PATH=...
+```
+
+## Y nghia thuc te
+
+Day la module co tinh ung dung bao mat he thong: theo doi cac thu muc nhay cam, phat hien process nao dang ghi/xoa file, va cho phep xem su kien qua `dmesg` hoac GUI.
+
+Module khong hook syscall table truc tiep. Thay vao do no dung kprobe tren cac ham kernel nhu `vfs_write` va `vfs_unlink`, an toan va phu hop hon cho demo tren Ubuntu kernel pho bien.
 
 ## Giao dien
 
-- `GtkApplicationWindow`
-- HeaderBar: **Linux Kernel Module Control Center**
-- Sidebar ben trai bang `GtkStackSidebar`
-- Noi dung ben phai bang `GtkStack`
-- Cac trang:
-  - Dashboard
-  - Module Control
-  - Device I/O
-  - Kernel Log
-  - Help
-
-## Chuc nang chinh
-
-- Dashboard hien Module Status, Device File, Device Status, Kernel Version, Last Action.
-- Module Control co Build Module, Load Module, Unload Module, Check Status, Clean Build.
-- Load/Unload co dialog xac nhan vi can quyen sudo/root.
-- Device I/O cho ghi/doc `/dev/simple_kmod`, bao loi ro neu device missing.
-- Kernel Log co Refresh dmesg, Filter Module Log, Search, Clear View.
-- Help hien cac buoc demo va lenh Linux tuong ung.
+- Dashboard: Module Status, Protected Path, Last Event, Total Events.
+- Module Control: Build, Load, Unload, Check Status, Clean Build.
+- Monitor Config: set/read protected path, tao/ghi/xoa file test.
+- Event Log: refresh dmesg, filter access_monitor, search, clear.
+- Help: cac buoc demo va lenh Linux tuong ung.
 
 ## Cau truc source
 
 ```text
 bai03_kernel_module_integration/
-├── src/
-│   ├── main.c
-│   ├── ui_main_window.c/.h
-│   ├── ui_dashboard_page.c/.h
-│   ├── ui_module_control_page.c/.h
-│   ├── ui_device_io_page.c/.h
-│   ├── ui_kernel_log_page.c/.h
-│   ├── ui_help_page.c/.h
-│   ├── kernel_module_commands.c/.h
-│   ├── simple_kmod.c
-│   └── Makefile
-├── scripts/
-├── docs/
-├── Makefile
-├── README.md
-├── FUNCTION_BREAKDOWN.md
-└── CODE_EXPLANATION.md
+|-- src/
+|   |-- access_monitor.c
+|   |-- kernel_module_commands.c/.h
+|   |-- ui_dashboard_page.c/.h
+|   |-- ui_module_control_page.c/.h
+|   |-- ui_device_io_page.c/.h
+|   |-- ui_kernel_log_page.c/.h
+|   |-- ui_help_page.c/.h
+|   |-- ui_main_window.c/.h
+|   |-- main.c
+|   `-- Makefile
+|-- scripts/module_control.sh
+|-- Makefile
+|-- README.md
+|-- FUNCTION_BREAKDOWN.md
+`-- CODE_EXPLANATION.md
 ```
 
 ## Cai thu vien
@@ -62,33 +66,52 @@ sudo apt install build-essential pkg-config libgtk-4-dev linux-headers-$(uname -
 make
 ```
 
-Lenh nay build ca GTK app va kernel module `src/simple_kmod.ko`.
+Lenh nay build ca GTK app va kernel module:
 
-## Chay
+```text
+src/access_monitor.ko
+```
+
+## Load / Unload bang terminal
+
+```bash
+sudo insmod src/access_monitor.ko protected_path=/tmp/protected
+lsmod | grep access_monitor
+sudo rmmod access_monitor
+```
+
+Hoac dung script:
+
+```bash
+bash scripts/module_control.sh status
+sudo bash scripts/module_control.sh load /tmp/protected
+sudo bash scripts/module_control.sh unload
+```
+
+## Test bang terminal
+
+```bash
+sudo insmod src/access_monitor.ko protected_path=/tmp/protected
+mkdir -p /tmp/protected
+echo "hello" > /tmp/protected/test.txt
+rm /tmp/protected/test.txt
+dmesg | grep access_monitor
+sudo rmmod access_monitor
+```
+
+## Test bang GUI
 
 ```bash
 make run
 ```
 
-Hoac:
+Trong GUI:
 
-```bash
-./bin/kernel_module_gtk
-```
-
-Load/unload module can quyen root. App se goi `sudo bash scripts/module_control.sh ...` khi can, hoac co the chay app bang sudo:
-
-```bash
-sudo ./bin/kernel_module_gtk
-```
-
-## Demo
-
-1. Mo Dashboard va bam Refresh.
-2. Vao Module Control, bam Build Module.
-3. Bam Load Module va xac nhan.
-4. Bam Check Status.
-5. Vao Device I/O, ghi data vao `/dev/simple_kmod`.
-6. Bam Read from Device de doc lai.
-7. Vao Kernel Log, bam Filter Module Log.
-8. Quay lai Module Control va Unload Module.
+1. Vao Module Control, bam Build Module.
+2. Bam Load Module.
+3. Vao Monitor Config, nhap `/tmp/protected`.
+4. Bam Set Protected Path.
+5. Bam Create Test File.
+6. Bam Write Test File.
+7. Bam Delete Test File.
+8. Vao Event Log, bam Filter access_monitor.

@@ -2,11 +2,11 @@
 #include "kernel_module_commands.h"
 
 typedef struct {
+    AppContext *ctx;
     GtkWidget *module_status;
-    GtkWidget *device_file;
-    GtkWidget *device_status;
-    GtkWidget *kernel_version;
+    GtkWidget *protected_path;
     GtkWidget *last_action;
+    GtkWidget *total_events;
 } DashboardPage;
 
 static GtkWidget *card(const char *title, GtkWidget **value) {
@@ -32,13 +32,20 @@ static GtkWidget *card(const char *title, GtkWidget **value) {
 }
 
 static void refresh_dashboard(DashboardPage *page, const char *last_action) {
-    char *kernel = kernel_version_string();
+    gboolean ok = FALSE;
+    int total = 0;
+    char *path = module_is_loaded() ? read_protected_path(GTK_WINDOW(page->ctx->window), &ok) : g_strdup("N/A");
+    char *event = last_access_event(&total);
+    char total_text[32];
+    g_snprintf(total_text, sizeof(total_text), "%d", total);
+
     gtk_label_set_text(GTK_LABEL(page->module_status), module_is_loaded() ? "Loaded" : "Not Loaded");
-    gtk_label_set_text(GTK_LABEL(page->device_file), DEVICE_PATH);
-    gtk_label_set_text(GTK_LABEL(page->device_status), device_exists() ? "Exists" : "Missing");
-    gtk_label_set_text(GTK_LABEL(page->kernel_version), kernel);
-    gtk_label_set_text(GTK_LABEL(page->last_action), last_action ? last_action : "Refreshed status");
-    g_free(kernel);
+    gtk_label_set_text(GTK_LABEL(page->protected_path), ok ? path : "N/A");
+    gtk_label_set_text(GTK_LABEL(page->last_action), event);
+    gtk_label_set_text(GTK_LABEL(page->total_events), total_text);
+    (void)last_action;
+    g_free(path);
+    g_free(event);
 }
 
 static void on_refresh(GtkButton *button, gpointer user_data) {
@@ -47,8 +54,8 @@ static void on_refresh(GtkButton *button, gpointer user_data) {
 }
 
 GtkWidget *ui_dashboard_page_new(AppContext *ctx) {
-    (void)ctx;
     DashboardPage *page = g_new0(DashboardPage, 1);
+    page->ctx = ctx;
     GtkWidget *root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
     gtk_widget_set_margin_top(root, 14);
     gtk_widget_set_margin_bottom(root, 14);
@@ -65,10 +72,9 @@ GtkWidget *ui_dashboard_page_new(AppContext *ctx) {
     gtk_grid_set_column_spacing(GTK_GRID(grid), 12);
     gtk_grid_set_row_spacing(GTK_GRID(grid), 12);
     gtk_grid_attach(GTK_GRID(grid), card("Module Status", &page->module_status), 0, 0, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid), card("Device File", &page->device_file), 1, 0, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid), card("Device Status", &page->device_status), 2, 0, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid), card("Kernel Version", &page->kernel_version), 0, 1, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid), card("Last Action", &page->last_action), 1, 1, 2, 1);
+    gtk_grid_attach(GTK_GRID(grid), card("Protected Path", &page->protected_path), 1, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), card("Total Events", &page->total_events), 2, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), card("Last Event", &page->last_action), 0, 1, 3, 1);
     gtk_box_append(GTK_BOX(root), grid);
 
     GtkWidget *refresh = gtk_button_new_with_label("Refresh");

@@ -16,11 +16,57 @@ static void set_log(KernelLogPage *page, const char *text, int count) {
     g_free(label);
 }
 
+static char *extract_field(const char *line, const char *key) {
+    char *start = g_strstr_len(line, -1, key);
+    if (!start) return g_strdup("N/A");
+    start += strlen(key);
+    char *end = strchr(start, ' ');
+    if (!end) return g_strdup(start);
+    return g_strndup(start, end - start);
+}
+
+static char *extract_time_field(const char *line) {
+    const char *left = strchr(line, '[');
+    const char *right = strchr(line, ']');
+    if (left && right && right > left) return g_strndup(left + 1, right - left - 1);
+    return g_strdup("N/A");
+}
+
+static char *format_event_lines(const char *logs, int *count) {
+    GString *out = g_string_new("Time | PID | Process | Action | Path\n");
+    g_string_append(out, "-----|-----|---------|--------|-----\n");
+    char **lines = g_strsplit(logs ? logs : "", "\n", -1);
+    int rows = 0;
+
+    for (int i = 0; lines[i]; i++) {
+        if (!g_strstr_len(lines[i], -1, "[access_monitor]")) continue;
+        char *time = extract_time_field(lines[i]);
+        char *pid = extract_field(lines[i], "PID=");
+        char *comm = extract_field(lines[i], "COMM=");
+        char *action = extract_field(lines[i], "ACTION=");
+        char *path_start = g_strstr_len(lines[i], -1, "PATH=");
+        const char *path = path_start ? path_start + 5 : "N/A";
+        g_string_append_printf(out, "%s | %s | %s | %s | %s\n", time, pid, comm, action, path);
+        rows++;
+        g_free(time);
+        g_free(pid);
+        g_free(comm);
+        g_free(action);
+    }
+
+    g_strfreev(lines);
+    if (count) *count = rows;
+    return g_string_free(out, FALSE);
+}
+
 static void load_logs(KernelLogPage *page, gboolean module_only) {
+    int raw_count = 0;
     int count = 0;
     const char *filter = gtk_editable_get_text(GTK_EDITABLE(page->filter_entry));
-    char *logs = read_kernel_log_sudo(GTK_WINDOW(page->ctx->window), module_only, filter, &count);
-    set_log(page, logs, count);
+    char *logs = read_kernel_log_sudo(GTK_WINDOW(page->ctx->window), module_only, filter, &raw_count);
+    char *formatted = format_event_lines(logs, &count);
+    set_log(page, formatted, count);
+    g_free(formatted);
     g_free(logs);
 }
 
@@ -54,14 +100,14 @@ GtkWidget *ui_kernel_log_page_new(AppContext *ctx) {
     gtk_widget_set_margin_end(root, 14);
     g_object_set_data_full(G_OBJECT(root), "page-data", page, (GDestroyNotify)g_free);
 
-    GtkWidget *title = gtk_label_new("Kernel Log");
+    GtkWidget *title = gtk_label_new("Event Log");
     gtk_widget_add_css_class(title, "title-2");
     gtk_widget_set_halign(title, GTK_ALIGN_START);
     gtk_box_append(GTK_BOX(root), title);
 
     GtkWidget *toolbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
     GtkWidget *refresh = gtk_button_new_with_label("Refresh dmesg");
-    GtkWidget *filter_module = gtk_button_new_with_label("Filter Module Log");
+    GtkWidget *filter_module = gtk_button_new_with_label("Filter access_monitor");
     GtkWidget *clear = gtk_button_new_with_label("Clear View");
     page->filter_entry = gtk_search_entry_new();
     gtk_widget_set_hexpand(page->filter_entry, TRUE);
