@@ -1,25 +1,43 @@
-# Bai 01 - Shell System Admin
+# Bai 01 - Linux System Admin Tool
 
-## Muc tieu
+## Mo ta
 
-Xay dung chuong trinh GTK ho tro quan tri he thong co ban tren Ubuntu: quan ly file/thu muc, tim kiem file, xem thong tin file, quan ly cron job, xem/doi thoi gian he thong va cai/go package bang apt.
+Ung dung quan tri he thong Ubuntu bang GTK4. Giao dien gom mot cua so chinh, HeaderBar, sidebar ben trai va vung noi dung ben phai dung `GtkStack`.
 
-## Chuc nang chinh
+## Giao dien
 
-- Chon thu muc va liet ke file.
-- Tao, xoa, doi ten, copy, move file hoac thu muc.
-- Tim file theo ten hoac phan mo rong.
-- Xem ten, kich thuoc, quyen, thoi gian sua doi.
-- Them, xem, xoa cron job.
-- Xem thoi gian he thong.
-- Doi thoi gian he thong neu chay voi quyen sudo.
-- Cai dat va go bo chuong trinh bang apt.
+- HeaderBar: **Linux System Admin Tool**
+- Sidebar:
+  - File Manager
+  - Cron Scheduler
+  - Time System
+  - Apt Manager
+  - Log
+- Moi chuc nang nam tren mot page rieng.
+- Cac thao tac nho nhu tao file, xoa, doi ten, copy/move, doi gio, cai/go package deu mo dialog xac nhan hoac dialog nhap du lieu.
+- Log Page ghi log theo dang `[INFO]`, `[OK]`, `[ERROR]`.
 
-## Cau truc thu muc
+## Chuc nang
+
+- File Manager: chon thu muc, refresh, tim file, bang danh sach file, tao/xoa/doi ten/copy/move/xem thong tin.
+- Cron Scheduler: nhap lenh, nhap 5 truong cron, preset moi phut/moi ngay 8h/moi tuan/custom, them/xem/xoa cron.
+- Time System: xem thoi gian hien tai, refresh, nhap ngay/gio va doi thoi gian he thong.
+- Apt Manager: cai dat, go bo, kiem tra package bang apt/dpkg.
+- Log: xem log toan chuong trinh, clear log, save log ra `system_admin_log.txt`.
+
+## Cau truc source
 
 ```text
 bai01_shell_system_admin/
-├── src/main.c
+├── src/
+│   ├── main.c
+│   ├── ui_main_window.c/.h
+│   ├── ui_file_page.c/.h
+│   ├── ui_cron_page.c/.h
+│   ├── ui_time_page.c/.h
+│   ├── ui_apt_page.c/.h
+│   ├── ui_log_page.c/.h
+│   └── system_commands.c/.h
 ├── scripts/system_ops.sh
 ├── screenshots/
 ├── Makefile
@@ -28,11 +46,11 @@ bai01_shell_system_admin/
 └── CODE_EXPLANATION.md
 ```
 
-## Cai thu vien
+## Cai thu vien tren Ubuntu
 
 ```bash
 sudo apt update
-sudo apt install build-essential pkg-config libgtk-3-dev
+sudo apt install build-essential pkg-config libgtk-4-dev
 ```
 
 ## Build
@@ -44,20 +62,20 @@ make
 ## Chay
 
 ```bash
-make run
+./system_admin_gui
 ```
 
-Neu muon doi thoi gian he thong hoac cai/go package, chay app bang sudo:
+Mot so chuc nang can quyen root, vi du doi thoi gian he thong va cai/go package:
 
 ```bash
-sudo ./bin/shell_admin_gtk
+sudo ./system_admin_gui
 ```
 
-## Demo
+## Demo nhanh
 
-1. Bam **Browse** de chon thu muc, sau do **Refresh** de liet ke file.
-2. Nhap ten file/thu muc va dung cac nut Create, Delete, Rename, Copy, Move.
-3. Nhap tu khoa tim kiem, vi du `.c` hoac `main`, bam Search.
-4. Chon file trong danh sach de xem thong tin.
-5. Tao cron job bang bieu thuc cron va lenh, vi du `*/5 * * * *` va `date >> /tmp/demo_cron.log`.
-6. Dung tab system de xem thoi gian, cai package nho nhu `htop`, hoac go package da cai.
+1. Mo File Manager, chon thu muc, thu tim file va xem thong tin.
+2. Tao file demo, doi ten, copy/move sang thu muc khac, sau do xoa.
+3. Mo Cron Scheduler, chon preset "Moi phut", nhap lenh va them cron job.
+4. Mo Time System, bam Refresh, thu doi thoi gian khi chay bang sudo.
+5. Mo Apt Manager, nhap `htop`, kiem tra package, cai dat hoac go bo neu can.
+6. Mo Log, xem output, Clear Log hoac Save Log.

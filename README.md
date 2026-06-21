@@ -15,7 +15,7 @@ linux_kernel_programming_project/
 
 ```bash
 sudo apt update
-sudo apt install build-essential pkg-config libgtk-3-dev
+sudo apt install build-essential pkg-config libgtk-3-dev libgtk-4-dev
 ```
 
 Voi bai 3 can them header kernel:

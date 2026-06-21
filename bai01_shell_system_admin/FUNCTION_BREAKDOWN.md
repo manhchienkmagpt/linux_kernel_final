@@ -1,50 +1,78 @@
 # Phan ra chuc nang - Bai 01
 
-## Module giao dien GTK
+## `main.c`
 
-- Tao cua so chinh, notebook gom 3 tab: File Manager, Cron, System.
-- Input: thao tac nguoi dung tren nut, entry, tree view.
-- Output: bang danh sach file, text log, dialog bao loi/thanh cong.
+- Tao `GtkApplication`.
+- Xu ly signal `activate`.
+- Goi `ui_main_window_new()` de tao cua so chinh.
 
-## Module quan ly file
+## `ui_main_window.c/.h`
 
-- `refresh_file_list`: doc noi dung thu muc hien tai bang `g_dir_open`, `g_dir_read_name`.
-- `create_item`: tao file bang `g_file_set_contents` hoac thu muc bang `g_mkdir`.
-- `delete_item`: xoa file bang `g_remove`, xoa thu muc rong bang `g_rmdir`.
-- `rename_item`: doi ten bang `g_rename`.
-- `copy_item`: copy file bang `g_file_copy`.
-- `move_item`: move/rename bang `g_rename`, neu khac filesystem co the bao loi.
-- `search_files`: duyet thu muc va loc theo chuoi nhap.
-- Input: duong dan thu muc, ten file, ten moi, duong dan dich.
-- Output: cap nhat danh sach file va log ket qua.
+- Tao `GtkApplicationWindow`.
+- Tao HeaderBar voi tieu de "Linux System Admin Tool".
+- Tao layout ngang: sidebar trai va `GtkStack` phai.
+- Sidebar co 5 nut: File Manager, Cron Scheduler, Time System, Apt Manager, Log.
+- Khi bam nut sidebar, doi page hien thi trong `GtkStack`.
 
-## Module thong tin file
+## `ui_file_page.c/.h`
 
-- Lay thong tin bang `g_stat`.
-- Hien thi ten, kich thuoc, permission dang octal, thoi gian sua doi.
-- Input: file duoc chon.
-- Output: text trong khung File Info.
+- Input: thu muc hien tai, tu khoa tim kiem, file dang chon, ten moi hoac thu muc dich.
+- Output: bang file va log.
+- Chuc nang:
+  - Chon thu muc bang `GtkFileChooserNative`.
+  - Liet ke file bang `g_dir_open`, `g_dir_read_name`, `g_stat`.
+  - Tim file theo chuoi trong ten.
+  - Tao file bang `g_file_set_contents`, tao thu muc bang `g_mkdir`.
+  - Xoa bang `g_remove` hoac `g_rmdir`.
+  - Doi ten bang `g_rename`.
+  - Copy/move bang `GFile`.
+  - Xem thong tin file bang dialog.
 
-## Module cron
+## `ui_cron_page.c/.h`
 
-- Goi `scripts/system_ops.sh cron-list` de xem cron hien co.
-- Goi `scripts/system_ops.sh cron-add "<expr>" "<command>"` de them job.
-- Goi `scripts/system_ops.sh cron-remove-line <index>` de xoa job theo dong.
-- Input: cron expression, lenh shell, index job.
-- Output: danh sach cron va log loi neu crontab khong hop le.
+- Input: lenh can chay va 5 truong cron: phut, gio, ngay, thang, thu.
+- Output: danh sach cron job va log.
+- Preset:
+  - Moi phut: `* * * * *`
+  - Moi ngay luc 8h: `0 8 * * *`
+  - Moi tuan: `0 8 * * 1`
+  - Custom: nguoi dung tu sua.
+- Them/xem/xoa cron thong qua `system_commands.c` va `scripts/system_ops.sh`.
 
-## Module system/apt/time
+## `ui_time_page.c/.h`
 
-- `time-now`: lay thoi gian he thong bang `date`.
-- `time-set`: doi thoi gian bang `date -s`, can sudo/root.
-- `apt-install`, `apt-remove`: goi `apt-get`.
-- Input: chuoi thoi gian hoac ten package.
-- Output: log stdout/stderr cua lenh.
+- Input: ngay `YYYY-MM-DD`, gio `HH:MM:SS`.
+- Output: label thoi gian hien tai va log.
+- Refresh lay thoi gian local bang GLib.
+- Doi thoi gian goi script `time-set`, co dialog xac nhan va can sudo.
+
+## `ui_apt_page.c/.h`
+
+- Input: ten package.
+- Output: TextView apt/dpkg output va Log Page.
+- Kiem tra package bang `apt-check`.
+- Cai dat bang `apt-install`.
+- Go bo bang `apt-remove`.
+- Cai/go package co dialog xac nhan.
+
+## `ui_log_page.c/.h`
+
+- Cung cap `append_log(LogPage*, level, message)` cho cac page khac.
+- Log format: `[INFO] ...`, `[OK] ...`, `[ERROR] ...`.
+- Clear Log xoa TextView.
+- Save Log luu ra `system_admin_log.txt`.
+
+## `system_commands.c/.h`
+
+- `run_system_script`: goi `bash scripts/system_ops.sh ...` bang `g_spawn_command_line_sync`.
+- `quote_arg`: escape input nguoi dung bang `g_shell_quote`.
+- `get_current_time_string`: lay thoi gian hien tai.
 
 ## Luong xu ly chinh
 
-1. Khoi tao GTK va widget.
-2. Nguoi dung thao tac tren tab.
-3. Callback xu ly input va goi backend C/script.
-4. Ket qua duoc day vao log va dialog.
-5. Neu thao tac thay doi file/cron, giao dien refresh danh sach lien quan.
+1. App khoi dong va tao main window.
+2. User chon page tu sidebar.
+3. User bam nut tren page.
+4. Event handler kiem tra input, mo dialog neu can.
+5. Backend GLib/script thuc hien thao tac.
+6. Ket qua hien tren page lien quan va ghi vao Log Page.

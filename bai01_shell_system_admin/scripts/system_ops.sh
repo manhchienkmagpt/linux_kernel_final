@@ -58,6 +58,17 @@ case "$cmd" in
     [[ -n "$pkg" ]] || { echo "Package name is required" >&2; exit 2; }
     apt-get remove -y "$pkg"
     ;;
+  apt-check)
+    pkg="${2:-}"
+    [[ -n "$pkg" ]] || { echo "Package name is required" >&2; exit 2; }
+    if dpkg -s "$pkg" >/dev/null 2>&1; then
+      echo "$pkg is installed."
+      dpkg -s "$pkg" | awk -F': ' '/^(Package|Version|Status|Description):/ { print }'
+    else
+      echo "$pkg is not installed."
+      exit 1
+    fi
+    ;;
   *)
     echo "Unknown command: $cmd" >&2
     exit 2
