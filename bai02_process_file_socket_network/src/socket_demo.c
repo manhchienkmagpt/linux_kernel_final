@@ -43,7 +43,9 @@ static void *server_loop(void *arg) {
             buffer[n] = '\0';
             snprintf(line, sizeof(line), "Received: %.100s", buffer);
             log_msg(line);
-            send(client, "ACK from server", 15, 0);
+            char reply[640];
+            snprintf(reply, sizeof(reply), "ACK from server. Received: %.500s", buffer);
+            send(client, reply, strlen(reply), 0);
         }
         close(client);
     }
@@ -113,10 +115,14 @@ char *socket_client_send(const char *host, int port, const char *message) {
         close(fd);
         return msg;
     }
-    send(fd, message, strlen(message), 0);
+    if (send(fd, message, strlen(message), 0) < 0) {
+        char *msg = g_strdup_printf("send failed: %s", strerror(errno));
+        close(fd);
+        return msg;
+    }
     char buffer[512] = {0};
     ssize_t n = recv(fd, buffer, sizeof(buffer) - 1, 0);
     close(fd);
     if (n < 0) return g_strdup_printf("recv failed: %s", strerror(errno));
-    return g_strdup_printf("Server response: %s", buffer);
+    return g_strdup_printf("Sent: %s\nServer response: %s", message, buffer);
 }

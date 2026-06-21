@@ -61,7 +61,7 @@ Socket Page la mini chat app:
 
 - Server mode: Start tao TCP server bang `socket_server_start`.
 - Stop goi `socket_server_stop`.
-- Send tao TCP client bang `socket_client_send`.
+- Send tao TCP client bang `socket_client_send`, log message da gui va response server tra ve.
 - Server log tu thread socket duoc dua ve GTK main loop bang `g_idle_add`.
 
 ## `src/ui_network_page.c`

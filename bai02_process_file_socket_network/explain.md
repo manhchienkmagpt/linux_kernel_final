@@ -343,7 +343,7 @@ Trong vong lap:
 2. Lay IP client bang `inet_ntop()`.
 3. Goi `recv()` de nhan message.
 4. Ghi log message nhan duoc.
-5. Goi `send()` de tra ve `"ACK from server"`.
+5. Goi `send()` de tra ve ACK kem noi dung server da nhan.
 6. Dong socket client.
 
 Server chi xu ly tung message ngan theo kieu request/response, khong phai chat realtime lien tuc.
@@ -368,7 +368,7 @@ lam cac buoc:
 4. Gui message bang `send()`.
 5. Nhan phan hoi bang `recv()`.
 6. Dong socket.
-7. Tra ve chuoi output cho UI.
+7. Tra ve chuoi output cho UI, gom dong `Sent: ...` va `Server response: ...`.
 
 ### Cap nhat GTK tu thread
 
