@@ -376,6 +376,14 @@ open(DEVICE_PATH, O_RDONLY)
 
 roi `read()` toi da 1024 byte. Ben kernel, thao tac nay se kich hoat `kmod_open`, `kmod_read`, `kmod_release`.
 
+Neu open device bi `Permission denied`, UI se dung bien the:
+
+```c
+read_device_data_sudo(GTK_WINDOW(parent), &ok)
+```
+
+Ham nay hien dialog nhap mat khau sudo neu can, sau do doc device qua `sudo cat /dev/simple_kmod`.
+
 ### Ghi device
 
 ```c
@@ -389,6 +397,14 @@ open(DEVICE_PATH, O_WRONLY)
 ```
 
 roi `write()` chuoi nguoi dung nhap. Ben kernel, thao tac nay kich hoat `kmod_write`.
+
+Neu open device de ghi bi `Permission denied`, UI se dung:
+
+```c
+write_device_data_sudo(GTK_WINDOW(parent), text, &ok)
+```
+
+Ham nay hoi mat khau sudo neu can va ghi vao device bang shell command chay qua sudo. Mat khau duoc truyen vao stdin cua `sudo -S`, khong dua vao command line.
 
 ### Doc kernel log
 
@@ -512,7 +528,7 @@ Luong chay:
 nguoi dung nhap text
   -> bam Write
   -> UI kiem tra device co ton tai khong
-  -> goi write_device_data(text, &ok)
+  -> goi write_device_data_sudo(text, &ok)
   -> user-space open/write/close /dev/simple_kmod
   -> kernel goi kmod_write
   -> buffer trong kernel duoc cap nhat
@@ -528,7 +544,7 @@ Luong chay:
 ```text
 bam Read
   -> UI kiem tra device
-  -> goi read_device_data(&ok)
+  -> goi read_device_data_sudo(&ok)
   -> user-space open/read/close /dev/simple_kmod
   -> kernel goi kmod_read
   -> du lieu trong device_buffer tra ve app

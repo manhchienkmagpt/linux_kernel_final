@@ -17,6 +17,8 @@ void run_command_async(const char *command, CommandDoneCallback callback, gpoint
 void run_command_async_sudo(GtkWindow *parent, const char *command, CommandDoneCallback callback, gpointer user_data);
 char *read_device_data(gboolean *ok);
 char *write_device_data(const char *text, gboolean *ok);
+char *read_device_data_sudo(GtkWindow *parent, gboolean *ok);
+char *write_device_data_sudo(GtkWindow *parent, const char *text, gboolean *ok);
 char *read_kernel_log(gboolean module_only, const char *filter, int *line_count);
 char *read_kernel_log_sudo(GtkWindow *parent, gboolean module_only, const char *filter, int *line_count);
 

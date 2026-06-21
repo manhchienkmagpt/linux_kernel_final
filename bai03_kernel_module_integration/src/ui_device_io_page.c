@@ -40,7 +40,7 @@ static void perform_write(DeviceIOPage *page) {
         return;
     }
     gboolean ok = FALSE;
-    char *msg = write_device_data(text, &ok);
+    char *msg = write_device_data_sudo(GTK_WINDOW(page->ctx->window), text, &ok);
     append_status(page, ok ? "OK" : "ERROR", msg);
     g_free(msg);
 }
@@ -75,7 +75,7 @@ static void on_read(GtkButton *button, gpointer user_data) {
         return;
     }
     gboolean ok = FALSE;
-    char *data = read_device_data(&ok);
+    char *data = read_device_data_sudo(GTK_WINDOW(page->ctx->window), &ok);
     set_text(page->read_view, data);
     append_status(page, ok ? "OK" : "ERROR", ok ? "Read data from device." : data);
     g_free(data);

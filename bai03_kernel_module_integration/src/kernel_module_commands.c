@@ -236,6 +236,90 @@ char *write_device_data(const char *text, gboolean *ok) {
     return g_strdup_printf("Wrote %zd bytes to %s", n, DEVICE_PATH);
 }
 
+static gboolean message_is_permission_denied(const char *message) {
+    return message && g_strrstr(message, "Permission denied") != NULL;
+}
+
+static char *strip_command_echo(char *text) {
+    if (!text) return g_strdup("");
+    if (g_str_has_prefix(text, "$ ")) {
+        char *newline = strchr(text, '\n');
+        if (newline) return g_strdup(newline + 1);
+    }
+    return g_strdup(text);
+}
+
+static char *sudo_password_for_device(GtkWindow *parent, gboolean *cancelled) {
+    if (cancelled) *cancelled = FALSE;
+    if (geteuid() == 0 || sudo_has_cached_credentials()) return NULL;
+
+    char *password = prompt_sudo_password(parent);
+    if (!password && cancelled) *cancelled = TRUE;
+    return password;
+}
+
+char *read_device_data_sudo(GtkWindow *parent, gboolean *ok) {
+    gboolean normal_ok = FALSE;
+    char *normal = read_device_data(&normal_ok);
+    if (normal_ok || !message_is_permission_denied(normal)) {
+        if (ok) *ok = normal_ok;
+        return normal;
+    }
+    g_free(normal);
+
+    gboolean cancelled = FALSE;
+    char *password = sudo_password_for_device(parent, &cancelled);
+    if (cancelled) {
+        if (ok) *ok = FALSE;
+        return g_strdup("Sudo password prompt was cancelled.");
+    }
+
+    gboolean command_ok = FALSE;
+    char *raw = run_command_sync_internal("cat " DEVICE_PATH, TRUE, password, &command_ok);
+    char *data = command_ok ? strip_command_echo(raw) : g_strdup(raw);
+    if (ok) *ok = command_ok;
+    g_free(raw);
+    g_free(password);
+    return data;
+}
+
+char *write_device_data_sudo(GtkWindow *parent, const char *text, gboolean *ok) {
+    gboolean normal_ok = FALSE;
+    char *normal = write_device_data(text, &normal_ok);
+    if (normal_ok || !message_is_permission_denied(normal)) {
+        if (ok) *ok = normal_ok;
+        return normal;
+    }
+    g_free(normal);
+
+    gboolean cancelled = FALSE;
+    char *password = sudo_password_for_device(parent, &cancelled);
+    if (cancelled) {
+        if (ok) *ok = FALSE;
+        return g_strdup("Sudo password prompt was cancelled.");
+    }
+
+    char *quoted_text = g_shell_quote(text ? text : "");
+    char *inner = g_strdup_printf("printf %%s %s > %s", quoted_text, DEVICE_PATH);
+    char *quoted_inner = g_shell_quote(inner);
+    char *command = g_strdup_printf("bash -lc %s", quoted_inner);
+    gboolean command_ok = FALSE;
+    char *raw = run_command_sync_internal(command, TRUE, password, &command_ok);
+
+    char *message = command_ok
+        ? g_strdup_printf("Wrote %zu bytes to %s using sudo", strlen(text ? text : ""), DEVICE_PATH)
+        : g_strdup(raw);
+    if (ok) *ok = command_ok;
+
+    g_free(raw);
+    g_free(command);
+    g_free(quoted_inner);
+    g_free(inner);
+    g_free(quoted_text);
+    g_free(password);
+    return message;
+}
+
 static char *filter_kernel_log(const char *raw, gboolean module_only, const char *filter, int *line_count) {
     GString *filtered = g_string_new("");
     char **lines = g_strsplit(raw ? raw : "", "\n", -1);
