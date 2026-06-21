@@ -302,13 +302,17 @@ char *write_device_data_sudo(GtkWindow *parent, const char *text, gboolean *ok) 
     }
 
     char *quoted_text = g_shell_quote(text ? text : "");
-    char *command = g_strdup_printf("printf %%s %s > %s", quoted_text, DEVICE_PATH);
+    char *inner = g_strdup_printf("printf %%s %s > %s", quoted_text, DEVICE_PATH);
+    char *quoted_inner = g_shell_quote(inner);
+    char *command = g_strdup_printf("sh -c %s", quoted_inner);
     gboolean command_ok = FALSE;
     char *raw = run_command_sync_internal(command, TRUE, password, &command_ok);
     char *message = command_ok ? g_strdup_printf("Command sent: %s", text ? text : "") : g_strdup(raw);
     if (ok) *ok = command_ok;
     g_free(raw);
     g_free(command);
+    g_free(quoted_inner);
+    g_free(inner);
     g_free(quoted_text);
     g_free(password);
     return message;
