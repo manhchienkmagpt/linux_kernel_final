@@ -4,9 +4,9 @@
 typedef struct {
     AppContext *ctx;
     GtkWidget *module_status;
-    GtkWidget *protected_path;
+    GtkWidget *mouse_connected;
     GtkWidget *last_action;
-    GtkWidget *total_events;
+    GtkWidget *device_interface;
 } DashboardPage;
 
 static GtkWidget *card(const char *title, GtkWidget **value) {
@@ -33,18 +33,17 @@ static GtkWidget *card(const char *title, GtkWidget **value) {
 
 static void refresh_dashboard(DashboardPage *page, const char *last_action) {
     gboolean ok = FALSE;
-    int total = 0;
-    char *path = module_is_loaded() ? read_protected_path(GTK_WINDOW(page->ctx->window), &ok) : g_strdup("N/A");
-    char *event = last_access_event(&total);
-    char total_text[32];
-    g_snprintf(total_text, sizeof(total_text), "%d", total);
+    char *message = NULL;
+    MouseStatus *status = module_is_loaded() ? read_mouse_status(GTK_WINDOW(page->ctx->window), &ok, &message) : NULL;
+    char *event = last_mouse_event();
 
     gtk_label_set_text(GTK_LABEL(page->module_status), module_is_loaded() ? "Loaded" : "Not Loaded");
-    gtk_label_set_text(GTK_LABEL(page->protected_path), ok ? path : "N/A");
+    gtk_label_set_text(GTK_LABEL(page->mouse_connected), (ok && status && status->connected) ? "Connected" : "Not Connected");
     gtk_label_set_text(GTK_LABEL(page->last_action), event);
-    gtk_label_set_text(GTK_LABEL(page->total_events), total_text);
+    gtk_label_set_text(GTK_LABEL(page->device_interface), DEVICE_PATH);
     (void)last_action;
-    g_free(path);
+    mouse_status_free(status);
+    g_free(message);
     g_free(event);
 }
 
@@ -72,8 +71,8 @@ GtkWidget *ui_dashboard_page_new(AppContext *ctx) {
     gtk_grid_set_column_spacing(GTK_GRID(grid), 12);
     gtk_grid_set_row_spacing(GTK_GRID(grid), 12);
     gtk_grid_attach(GTK_GRID(grid), card("Module Status", &page->module_status), 0, 0, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid), card("Protected Path", &page->protected_path), 1, 0, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid), card("Total Events", &page->total_events), 2, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), card("Mouse Connected", &page->mouse_connected), 1, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), card("Device Interface", &page->device_interface), 2, 0, 1, 1);
     gtk_grid_attach(GTK_GRID(grid), card("Last Event", &page->last_action), 0, 1, 3, 1);
     gtk_box_append(GTK_BOX(root), grid);
 

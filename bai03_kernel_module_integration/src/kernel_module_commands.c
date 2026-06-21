@@ -220,22 +220,6 @@ char *read_device_data(gboolean *ok) {
     return g_strdup(buffer);
 }
 
-char *write_device_data(const char *text, gboolean *ok) {
-    int fd = open(DEVICE_PATH, O_WRONLY);
-    if (fd < 0) {
-        if (ok) *ok = FALSE;
-        return g_strdup_printf("open %s failed: %s", DEVICE_PATH, strerror(errno));
-    }
-    ssize_t n = write(fd, text ? text : "", strlen(text ? text : ""));
-    close(fd);
-    if (n < 0) {
-        if (ok) *ok = FALSE;
-        return g_strdup_printf("write failed: %s", strerror(errno));
-    }
-    if (ok) *ok = TRUE;
-    return g_strdup_printf("Wrote %zd bytes to %s", n, DEVICE_PATH);
-}
-
 static gboolean message_is_permission_denied(const char *message) {
     return message && g_strrstr(message, "Permission denied") != NULL;
 }
@@ -250,19 +234,6 @@ static char *strip_command_echo(char *text) {
 }
 
 static char *sudo_password_for_device(GtkWindow *parent, gboolean *cancelled);
-
-static char *run_sudo_command_with_prompt(GtkWindow *parent, const char *command, gboolean *ok) {
-    gboolean cancelled = FALSE;
-    char *password = sudo_password_for_device(parent, &cancelled);
-    if (cancelled) {
-        if (ok) *ok = FALSE;
-        return g_strdup("Sudo password prompt was cancelled.");
-    }
-
-    char *raw = run_command_sync_internal(command, TRUE, password, ok);
-    g_free(password);
-    return raw;
-}
 
 static char *sudo_password_for_device(GtkWindow *parent, gboolean *cancelled) {
     if (cancelled) *cancelled = FALSE;
@@ -298,121 +269,56 @@ char *read_device_data_sudo(GtkWindow *parent, gboolean *ok) {
     return data;
 }
 
-char *write_device_data_sudo(GtkWindow *parent, const char *text, gboolean *ok) {
-    gboolean normal_ok = FALSE;
-    char *normal = write_device_data(text, &normal_ok);
-    if (normal_ok || !message_is_permission_denied(normal)) {
-        if (ok) *ok = normal_ok;
-        return normal;
-    }
-    g_free(normal);
+static int parse_status_value(const char *raw, const char *key) {
+    char *pattern = g_strdup_printf("%s=", key);
+    char *start = g_strstr_len(raw ? raw : "", -1, pattern);
+    int value = 0;
+    if (start) value = (int)g_ascii_strtoll(start + strlen(pattern), NULL, 10);
+    g_free(pattern);
+    return value;
+}
 
-    gboolean cancelled = FALSE;
-    char *password = sudo_password_for_device(parent, &cancelled);
-    if (cancelled) {
+MouseStatus *read_mouse_status(GtkWindow *parent, gboolean *ok, char **message) {
+    gboolean read_ok = FALSE;
+    char *raw = read_device_data_sudo(parent, &read_ok);
+    if (!read_ok) {
         if (ok) *ok = FALSE;
-        return g_strdup("Sudo password prompt was cancelled.");
+        if (message) *message = g_strdup(raw);
+        g_free(raw);
+        return NULL;
     }
 
-    char *quoted_text = g_shell_quote(text ? text : "");
-    char *inner = g_strdup_printf("printf %%s %s > %s", quoted_text, DEVICE_PATH);
-    char *quoted_inner = g_shell_quote(inner);
-    char *command = g_strdup_printf("bash -lc %s", quoted_inner);
-    gboolean command_ok = FALSE;
-    char *raw = run_command_sync_internal(command, TRUE, password, &command_ok);
-
-    char *message = command_ok
-        ? g_strdup_printf("Wrote %zu bytes to %s using sudo", strlen(text ? text : ""), DEVICE_PATH)
-        : g_strdup(raw);
-    if (ok) *ok = command_ok;
-
-    g_free(raw);
-    g_free(command);
-    g_free(quoted_inner);
-    g_free(inner);
-    g_free(quoted_text);
-    g_free(password);
-    return message;
+    MouseStatus *status = g_new0(MouseStatus, 1);
+    status->raw = raw;
+    status->connected = parse_status_value(raw, "connected");
+    status->left = parse_status_value(raw, "left");
+    status->right = parse_status_value(raw, "right");
+    status->middle = parse_status_value(raw, "middle");
+    status->dx = parse_status_value(raw, "dx");
+    status->dy = parse_status_value(raw, "dy");
+    status->wheel = parse_status_value(raw, "wheel");
+    if (ok) *ok = TRUE;
+    if (message) *message = g_strdup("Mouse status refreshed.");
+    return status;
 }
 
-char *read_protected_path(GtkWindow *parent, gboolean *ok) {
-    char *path = read_device_data_sudo(parent, ok);
-    g_strstrip(path);
-    return path;
+void mouse_status_free(MouseStatus *status) {
+    if (!status) return;
+    g_free(status->raw);
+    g_free(status);
 }
 
-char *set_protected_path(GtkWindow *parent, const char *path, gboolean *ok) {
-    if (!path || !*path || path[0] != '/') {
-        if (ok) *ok = FALSE;
-        return g_strdup("Protected path must be an absolute path.");
-    }
-    return write_device_data_sudo(parent, path, ok);
-}
-
-static char *test_file_path(const char *protected_path) {
-    const char *base = (protected_path && *protected_path) ? protected_path : "/tmp/protected";
-    return g_build_filename(base, "test.txt", NULL);
-}
-
-char *create_test_file(GtkWindow *parent, const char *protected_path, gboolean *ok) {
-    char *path = test_file_path(protected_path);
-    char *dir = g_path_get_dirname(path);
-    char *qdir = g_shell_quote(dir);
-    char *qpath = g_shell_quote(path);
-    char *command = g_strdup_printf("mkdir -p %s && touch %s", qdir, qpath);
-    char *raw = run_sudo_command_with_prompt(parent, command, ok);
-    char *result = (*ok) ? g_strdup_printf("Created test file: %s", path) : g_strdup(raw);
-    g_free(raw);
-    g_free(command);
-    g_free(qpath);
-    g_free(qdir);
-    g_free(dir);
-    g_free(path);
-    return result;
-}
-
-char *write_test_file(GtkWindow *parent, const char *protected_path, gboolean *ok) {
-    char *path = test_file_path(protected_path);
-    char *text = g_shell_quote("hello from access_monitor GUI\n");
-    char *qpath = g_shell_quote(path);
-    char *command = g_strdup_printf("printf %%s %s >> %s", text, qpath);
-    char *raw = run_sudo_command_with_prompt(parent, command, ok);
-    char *result = (*ok) ? g_strdup_printf("Wrote test data to: %s", path) : g_strdup(raw);
-    g_free(raw);
-    g_free(command);
-    g_free(qpath);
-    g_free(text);
-    g_free(path);
-    return result;
-}
-
-char *delete_test_file(GtkWindow *parent, const char *protected_path, gboolean *ok) {
-    char *path = test_file_path(protected_path);
-    char *qpath = g_shell_quote(path);
-    char *command = g_strdup_printf("rm -f %s", qpath);
-    char *raw = run_sudo_command_with_prompt(parent, command, ok);
-    char *result = (*ok) ? g_strdup_printf("Deleted test file: %s", path) : g_strdup(raw);
-    g_free(raw);
-    g_free(command);
-    g_free(qpath);
-    g_free(path);
-    return result;
-}
-
-char *last_access_event(int *total_events) {
+char *last_mouse_event(void) {
     gboolean ok = FALSE;
-    char *raw = run_command_sync("dmesg | grep access_monitor | tail -50", &ok);
+    char *raw = run_command_sync("dmesg | grep usb_mouse_monitor | tail -20", &ok);
     char **lines = g_strsplit(raw ? raw : "", "\n", -1);
     char *last = g_strdup("No events yet");
-    int count = 0;
 
     for (int i = 0; lines[i]; i++) {
-        if (!g_strstr_len(lines[i], -1, "[access_monitor]")) continue;
+        if (!g_strstr_len(lines[i], -1, "usb_mouse_monitor")) continue;
         g_free(last);
         last = g_strdup(lines[i]);
-        count++;
     }
-    if (total_events) *total_events = count;
     g_strfreev(lines);
     g_free(raw);
     return last;

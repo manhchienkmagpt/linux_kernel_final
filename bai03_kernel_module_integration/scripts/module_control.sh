@@ -2,11 +2,10 @@
 set -u
 
 cmd="${1:-}"
-module_name="access_monitor"
+module_name="usb_mouse_monitor"
 script_path="$(readlink -f "$0")"
 project_dir="$(cd "$(dirname "$script_path")/.." && pwd)"
-ko_path="$project_dir/src/access_monitor.ko"
-protected_path="${2:-/tmp/protected}"
+ko_path="$project_dir/src/usb_mouse_monitor.ko"
 
 need_root() {
   if [[ "$(id -u)" -ne 0 ]]; then
@@ -20,14 +19,13 @@ need_root() {
 
 case "$cmd" in
   load)
-    need_root "$cmd" "$protected_path"
+    need_root "$cmd"
     if lsmod | grep -q "^${module_name}"; then
       echo "$module_name is already loaded."
       exit 0
     fi
-    mkdir -p "$protected_path"
-    insmod "$ko_path" protected_path="$protected_path"
-    echo "Loaded $ko_path protected_path=$protected_path"
+    insmod "$ko_path"
+    echo "Loaded $ko_path"
     ;;
   unload)
     need_root "$cmd"
@@ -41,7 +39,7 @@ case "$cmd" in
   status)
     if lsmod | grep -q "^${module_name}"; then
       lsmod | grep "^${module_name}"
-      [[ -e /dev/access_monitor ]] && ls -l /dev/access_monitor
+      [[ -e /proc/usb_mouse_monitor ]] && ls -l /proc/usb_mouse_monitor
     else
       echo "$module_name is not loaded."
     fi

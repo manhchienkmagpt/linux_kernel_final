@@ -1,117 +1,121 @@
-# Bai 03 - Linux File Access Monitor
+# Bai 03 - USB Mouse Monitor
 
 ## Muc tieu
 
-Project nay xay dung Linux Kernel Module `access_monitor` va ung dung GTK4 de demo mot mini File Access Monitor / Security Monitor.
+Project nay xay dung Linux Kernel Module `usb_mouse_monitor` va ung dung GTK4 de giam sat chuot USB HID.
 
-Module theo doi thao tac ghi va xoa file trong mot protected path, mac dinh:
-
-```text
-/tmp/protected
-```
-
-Khi co process ghi hoac xoa file trong protected path, module ghi log vao kernel bang `printk/pr_info`:
+Module doc interrupt endpoint cua USB mouse, parse HID mouse report co ban va ghi log kernel khi co su kien chuot:
 
 ```text
-[access_monitor] PID=... COMM=... ACTION=WRITE PATH=...
-[access_monitor] PID=... COMM=... ACTION=DELETE PATH=...
+[usb_mouse_monitor] left=1 right=0 middle=0 dx=5 dy=-2 wheel=0
 ```
 
-## Y nghia thuc te
+Module cung tao interface user-space:
 
-Day la module co tinh ung dung bao mat he thong: theo doi cac thu muc nhay cam, phat hien process nao dang ghi/xoa file, va cho phep xem su kien qua `dmesg` hoac GUI.
+```text
+/proc/usb_mouse_monitor
+```
 
-Module khong hook syscall table truc tiep. Thay vao do no dung kprobe tren cac ham kernel nhu `vfs_write` va `vfs_unlink`, an toan va phu hop hon cho demo tren Ubuntu kernel pho bien.
+Doc status:
+
+```bash
+cat /proc/usb_mouse_monitor
+```
+
+Output:
+
+```text
+connected=1
+left=0
+right=0
+middle=0
+dx=0
+dy=0
+wheel=0
+```
+
+## Ghi chu quan trong
+
+Module dang ky mot `usb_driver` cho USB HID boot mouse. Tren Ubuntu, chuot USB thuong da duoc driver `usbhid` quan ly. Neu `usbhid` da bind vao chuot, module demo co the khong probe duoc thiet bi do cho den khi ban unbind khoi `usbhid` va bind sang `usb_mouse_monitor`.
+
+Module khong hook syscall va khong can thiep syscall table.
+
+Nen demo bang chuot USB phu. Khi bind chuot sang module nay, chuot do co the tam thoi khong dieu khien con tro cho den khi bind lai `usbhid`.
 
 ## Giao dien
 
-- Dashboard: Module Status, Protected Path, Last Event, Total Events.
+- Dashboard: Module Status, Mouse Connected, Last Event, Device Interface.
 - Module Control: Build, Load, Unload, Check Status, Clean Build.
-- Monitor Config: set/read protected path, tao/ghi/xoa file test.
-- Event Log: refresh dmesg, filter access_monitor, search, clear.
-- Help: cac buoc demo va lenh Linux tuong ung.
-
-## Cau truc source
-
-```text
-bai03_kernel_module_integration/
-|-- src/
-|   |-- access_monitor.c
-|   |-- kernel_module_commands.c/.h
-|   |-- ui_dashboard_page.c/.h
-|   |-- ui_module_control_page.c/.h
-|   |-- ui_device_io_page.c/.h
-|   |-- ui_kernel_log_page.c/.h
-|   |-- ui_help_page.c/.h
-|   |-- ui_main_window.c/.h
-|   |-- main.c
-|   `-- Makefile
-|-- scripts/module_control.sh
-|-- Makefile
-|-- README.md
-|-- FUNCTION_BREAKDOWN.md
-`-- CODE_EXPLANATION.md
-```
-
-## Cai thu vien
-
-```bash
-sudo apt update
-sudo apt install build-essential pkg-config libgtk-4-dev linux-headers-$(uname -r) kmod
-```
+- Mouse Status: doc `/proc/usb_mouse_monitor` va hien nut/dx/dy/wheel.
+- Event Log: refresh dmesg, filter `usb_mouse_monitor`, clear.
+- Help: huong dan demo va giai thich dx/dy.
 
 ## Build
 
 ```bash
+sudo apt update
+sudo apt install build-essential pkg-config libgtk-4-dev linux-headers-$(uname -r) kmod
 make
 ```
 
-Lenh nay build ca GTK app va kernel module:
+File module:
 
 ```text
-src/access_monitor.ko
+src/usb_mouse_monitor.ko
 ```
 
-## Load / Unload bang terminal
+## Load / Unload
 
 ```bash
-sudo insmod src/access_monitor.ko protected_path=/tmp/protected
-lsmod | grep access_monitor
-sudo rmmod access_monitor
+sudo insmod src/usb_mouse_monitor.ko
+lsmod | grep usb_mouse_monitor
+cat /proc/usb_mouse_monitor
+dmesg | grep usb_mouse_monitor
+sudo rmmod usb_mouse_monitor
 ```
 
-Hoac dung script:
-
-```bash
-bash scripts/module_control.sh status
-sudo bash scripts/module_control.sh load /tmp/protected
-sudo bash scripts/module_control.sh unload
-```
-
-## Test bang terminal
-
-```bash
-sudo insmod src/access_monitor.ko protected_path=/tmp/protected
-mkdir -p /tmp/protected
-echo "hello" > /tmp/protected/test.txt
-rm /tmp/protected/test.txt
-dmesg | grep access_monitor
-sudo rmmod access_monitor
-```
-
-## Test bang GUI
+Hoac dung GUI:
 
 ```bash
 make run
 ```
 
-Trong GUI:
+## Demo bang GUI
 
-1. Vao Module Control, bam Build Module.
-2. Bam Load Module.
-3. Vao Monitor Config, nhap `/tmp/protected`.
-4. Bam Set Protected Path.
-5. Bam Create Test File.
-6. Bam Write Test File.
-7. Bam Delete Test File.
-8. Vao Event Log, bam Filter access_monitor.
+1. Vao Module Control.
+2. Bam Build Module.
+3. Bam Load Module.
+4. Cam chuot USB hoac rebind chuot sang module neu can.
+5. Di chuyen/click chuot.
+6. Vao Mouse Status, bam Refresh Status.
+7. Vao Event Log, bam Filter usb_mouse_monitor.
+
+## Demo khi usbhid dang giu chuot
+
+Tim interface chuot USB:
+
+```bash
+ls /sys/bus/usb/drivers/usbhid/
+```
+
+Interface thuong co dang `1-2:1.0`, `2-1:1.0`. Sau khi load module:
+
+```bash
+sudo sh -c 'echo 1-2:1.0 > /sys/bus/usb/drivers/usbhid/unbind'
+sudo sh -c 'echo 1-2:1.0 > /sys/bus/usb/drivers/usb_mouse_monitor/bind'
+cat /proc/usb_mouse_monitor
+dmesg | grep usb_mouse_monitor
+```
+
+Khi demo xong, tra chuot ve driver ban dau:
+
+```bash
+sudo sh -c 'echo 1-2:1.0 > /sys/bus/usb/drivers/usb_mouse_monitor/unbind'
+sudo sh -c 'echo 1-2:1.0 > /sys/bus/usb/drivers/usbhid/bind'
+```
+
+Thay `1-2:1.0` bang interface thuc te tren may cua ban.
+
+## dx/dy la gi
+
+`dx` va `dy` la do dich chuyen tuong doi cua chuot trong report gan nhat, khong phai toa do tuyet doi tren man hinh.
