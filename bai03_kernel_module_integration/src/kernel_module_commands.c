@@ -72,7 +72,7 @@ static char *prompt_sudo_password(GtkWindow *parent) {
 
     gtk_box_append(GTK_BOX(content), box);
     g_signal_connect(dialog, "response", G_CALLBACK(password_dialog_response), &data);
-    g_signal_connect_swapped(data.entry, "activate", G_CALLBACK(gtk_window_activate_default), dialog);
+    g_signal_connect_swapped(data.entry, "activate", G_CALLBACK(gtk_widget_activate_default), dialog);
     gtk_dialog_set_default_response(GTK_DIALOG(dialog), GTK_RESPONSE_ACCEPT);
     gtk_window_present(GTK_WINDOW(dialog));
     gtk_widget_grab_focus(data.entry);
