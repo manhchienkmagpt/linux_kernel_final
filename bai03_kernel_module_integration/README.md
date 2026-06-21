@@ -76,7 +76,7 @@ Pages:
 
 - Dashboard: module status, device file, root directory, last command/result, total commands.
 - Module Control: build/load/unload/status/clean.
-- File Manager: form thao tac file.
+- File Manager: chon root directory, hien danh sach file trong root, chon file va thao tac create/read/write/append/delete/rename/copy/info.
 - Command Console: gui command thu cong va doc result.
 - Kernel Log: refresh/filter `kfile_manager`.
 - Help: huong dan demo.

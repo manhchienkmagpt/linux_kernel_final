@@ -106,7 +106,7 @@ App GTK ten **Linux Kernel File Manager** gom:
 - Kernel Log
 - Help
 
-File Manager cung cap form cho cac lenh hay dung. Command Console cho phep nhap command thu cong nhu:
+File Manager cho phep chon root directory, hien danh sach file trong root, chon file va thao tac them/sua/xoa/doi ten/copy/doc metadata. Command Console cho phep nhap command thu cong nhu:
 
 ```text
 CREATE a.txt

@@ -62,6 +62,16 @@ Moi command printk:
 [kfile_manager] PID=... COMM=... CMD=CREATE FILE=file1.txt RESULT=OK
 ```
 
+## GTK File Manager
+
+- Choose Root / Set Root gui `SET_ROOT`.
+- Refresh gui `LIST` va do file vao danh sach ben trai.
+- Khi chon mot file, filename duoc dua vao form thao tac.
+- Read nap noi dung file vao editor.
+- Write/Append ghi noi dung editor xuong file.
+- Delete co dialog xac nhan.
+- Rename/Copy dung target filename.
+
 ## GTK Pages
 
 - Module Control: build/load/unload/status/clean.
