@@ -1,8 +1,10 @@
 #include "process_utils.h"
 #include <signal.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/wait.h>
+#include <sys/prctl.h>
+#include <time.h>
 #include <unistd.h>
 #include <errno.h>
 
@@ -38,15 +40,69 @@ int kill_process_by_pid(pid_t pid, char **error_message) {
     return 0;
 }
 
-char *fork_demo(void) {
+static const char *task_name(ChildTaskType task) {
+    switch (task) {
+        case CHILD_TASK_WRITE_DATE: return "write-date";
+        case CHILD_TASK_WRITE_HEARTBEAT: return "heartbeat";
+        case CHILD_TASK_IDLE: return "idle";
+        default: return "unknown";
+    }
+}
+
+static const char *process_name_for_task(ChildTaskType task) {
+    switch (task) {
+        case CHILD_TASK_WRITE_DATE: return "child_date";
+        case CHILD_TASK_WRITE_HEARTBEAT: return "child_beat";
+        case CHILD_TASK_IDLE: return "child_idle";
+        default: return "child_task";
+    }
+}
+
+static void append_line_to_file(const char *path, const char *line) {
+    FILE *f = fopen(path, "a");
+    if (!f) return;
+    fprintf(f, "%s\n", line);
+    fclose(f);
+}
+
+static void run_child_task(ChildTaskType task, const char *output_path, int interval_seconds) {
+    const char *path = (output_path && *output_path) ? output_path : "child_process_output.txt";
+    int interval = interval_seconds > 0 ? interval_seconds : 5;
+    unsigned long counter = 1;
+
+    prctl(PR_SET_NAME, process_name_for_task(task), 0, 0, 0);
+
+    while (1) {
+        if (task == CHILD_TASK_WRITE_DATE) {
+            time_t now = time(NULL);
+            struct tm tm_now;
+            char time_text[64];
+            localtime_r(&now, &tm_now);
+            strftime(time_text, sizeof(time_text), "%Y-%m-%d %H:%M:%S", &tm_now);
+
+            char line[256];
+            snprintf(line, sizeof(line), "PID=%d PPID=%d date=%s", getpid(), getppid(), time_text);
+            append_line_to_file(path, line);
+        } else if (task == CHILD_TASK_WRITE_HEARTBEAT) {
+            char line[256];
+            snprintf(line, sizeof(line), "PID=%d PPID=%d heartbeat=%lu", getpid(), getppid(), counter++);
+            append_line_to_file(path, line);
+        }
+
+        sleep((unsigned int)interval);
+    }
+}
+
+char *fork_child_task(ChildTaskType task, const char *output_path, int interval_seconds) {
+    signal(SIGCHLD, SIG_IGN);
+
     pid_t pid = fork();
     if (pid < 0) return g_strdup_printf("fork failed: %s", strerror(errno));
     if (pid == 0) {
-        g_print("Child process running. PID=%d PPID=%d\n", getpid(), getppid());
-        sleep(2);
+        run_child_task(task, output_path, interval_seconds);
         _exit(0);
     }
-    int status = 0;
-    waitpid(pid, &status, 0);
-    return g_strdup_printf("Parent PID=%d created child PID=%d. Child exited with status=%d", getpid(), pid, status);
+
+    return g_strdup_printf("Parent PID=%d created child PID=%d with task=%s. Kill it from the Processes page when you want it to stop.",
+                           getpid(), pid, task_name(task));
 }

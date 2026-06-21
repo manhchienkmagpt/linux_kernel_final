@@ -40,7 +40,7 @@ Process Page giong Task Manager:
 - State doc tu `/proc/<pid>/stat`.
 - Search loc theo PID hoac name.
 - Kill Process mo dialog xac nhan roi goi `kill_process_by_pid`.
-- Create Child Process mo dialog nhap so luong va goi `fork_demo`.
+- Create Child Process mo dialog nhap so luong, chon task, file output, interval va goi `fork_child_task`.
 
 ## `src/ui_file_page.c`
 
@@ -79,7 +79,7 @@ Log Page cung cap `log_page_append`. Moi page nhan `AppContext`, tu do ghi vao L
 
 ## Backend cu
 
-- `process_utils.c`: chay `ps`, goi `kill`, goi `fork`.
+- `process_utils.c`: chay `ps`, goi `kill`, goi `fork`; child co the ghi date/heartbeat vao file va chay den khi user kill.
 - `file_syscall.c`: doc/ghi file bang syscall cap thap.
 - `socket_demo.c`: TCP server/client su dung `socket`, `bind`, `listen`, `accept`, `connect`, `send`, `recv`.
 - `network_info.c`: liet ke interface bang `getifaddrs`.

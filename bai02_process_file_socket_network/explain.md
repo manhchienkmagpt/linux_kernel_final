@@ -211,16 +211,25 @@ Khi nguoi dung chon mot process va bam Kill:
 Ham:
 
 ```c
-char *fork_demo(void)
+char *fork_child_task(ChildTaskType task, const char *output_path, int interval_seconds)
 ```
 
-goi `fork()`.
+goi `fork()` de tao process con chay nen. UI hien dialog theo thu tu:
 
-- Neu `fork()` tra ve `< 0`: loi.
-- Neu tra ve `0`: dang o child process. Child in PID/PPID, sleep 2 giay, roi `_exit(0)`.
-- Neu tra ve `> 0`: dang o parent process. Parent goi `waitpid()` de doi child ket thuc.
+- so luong process con can tao
+- option cong viec moi process con se lam
+- file output neu cong viec can ghi file
+- thoi gian lap lai tinh bang giay
 
-Chuc nang nay giup demo ro quan he parent/child process trong Linux.
+Co 3 option cong viec:
+
+- `Write current date to file`: process con lap vo han, moi chu ky ghi PID, PPID va thoi gian hien tai vao file.
+- `Write heartbeat counter to file`: process con lap vo han, moi chu ky ghi PID, PPID va counter tang dan vao file.
+- `Idle only`: process con chi song nen va ngu theo chu ky, khong ghi file.
+
+Ben trong child, code dat ten process bang `prctl(PR_SET_NAME, ...)`, nen trong bang Processes co the thay ten nhu `child_date`, `child_beat`, `child_idle`. Parent khong `waitpid()` ngay nua, vi neu wait thi UI se bi dung cho den khi child ket thuc. Thay vao do, child tiep tuc chay cho den khi user chon PID trong UI va bam `Kill Process`.
+
+Parent dat `SIGCHLD` thanh `SIG_IGN` de Linux tu thu gom child sau khi no bi kill, tranh tao zombie process.
 
 ## 8. File Page
 
@@ -435,9 +444,8 @@ Hoac:
 
 - GTK4 chia UI thanh nhieu page bang `GtkStack`.
 - `AppContext` giup truyen window va Log Page cho cac page.
-- Process demo dung `ps`, `kill`, `fork`, `waitpid`.
+- Process demo dung `ps`, `kill`, `fork`, child process chay nen va dung `SIGTERM` de ket thuc.
 - File demo dung syscall cap thap `open/read/write/close`.
 - Socket demo dung TCP server/client va thread.
 - Network demo lay thong tin tu `getifaddrs` va `/sys/class/net`.
 - Khi thread phu muon cap nhat UI GTK, nen dua viec cap nhat ve main loop bang `g_idle_add`.
-

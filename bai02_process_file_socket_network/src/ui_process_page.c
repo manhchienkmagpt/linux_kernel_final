@@ -139,13 +139,29 @@ static void on_kill(GtkButton *button, gpointer user_data) {
 static void on_child_response(GtkDialog *dialog, int response, gpointer user_data) {
     ProcessPage *page = user_data;
     GtkWidget *spin = g_object_get_data(G_OBJECT(dialog), "spin");
+    GtkWidget *task_combo = g_object_get_data(G_OBJECT(dialog), "task-combo");
+    GtkWidget *path_entry = g_object_get_data(G_OBJECT(dialog), "path-entry");
+    GtkWidget *interval_spin = g_object_get_data(G_OBJECT(dialog), "interval-spin");
+
     if (response == GTK_RESPONSE_ACCEPT) {
         int count = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(spin));
+        int interval = gtk_spin_button_get_value_as_int(GTK_SPIN_BUTTON(interval_spin));
+        const char *path = gtk_editable_get_text(GTK_EDITABLE(path_entry));
+        const char *task_id = gtk_combo_box_get_active_id(GTK_COMBO_BOX(task_combo));
+        ChildTaskType task = CHILD_TASK_WRITE_DATE;
+
+        if (g_strcmp0(task_id, "heartbeat") == 0) {
+            task = CHILD_TASK_WRITE_HEARTBEAT;
+        } else if (g_strcmp0(task_id, "idle") == 0) {
+            task = CHILD_TASK_IDLE;
+        }
+
         for (int i = 0; i < count; i++) {
-            char *msg = fork_demo();
+            char *msg = fork_child_task(task, path, interval);
             log_page_append(page->ctx->log_page, "OK", msg);
             g_free(msg);
         }
+        refresh_processes(page);
     }
     gtk_window_destroy(GTK_WINDOW(dialog));
 }
@@ -157,10 +173,42 @@ static void on_create_child(GtkButton *button, gpointer user_data) {
         GTK_DIALOG_MODAL, "Cancel", GTK_RESPONSE_CANCEL, "Create", GTK_RESPONSE_ACCEPT, NULL);
     GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
     GtkWidget *spin = gtk_spin_button_new_with_range(1, 10, 1);
+
     gtk_box_append(GTK_BOX(box), gtk_label_new("Number of child processes:"));
     gtk_box_append(GTK_BOX(box), spin);
+
+    GtkWidget *task_label = gtk_label_new("Task for each child process:");
+    gtk_widget_set_halign(task_label, GTK_ALIGN_START);
+    gtk_box_append(GTK_BOX(box), task_label);
+
+    GtkWidget *task_combo = gtk_combo_box_text_new();
+    gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(task_combo), "date", "Write current date to file");
+    gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(task_combo), "heartbeat", "Write heartbeat counter to file");
+    gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(task_combo), "idle", "Idle only, wait until killed");
+    gtk_combo_box_set_active_id(GTK_COMBO_BOX(task_combo), "date");
+    gtk_box_append(GTK_BOX(box), task_combo);
+
+    GtkWidget *path_label = gtk_label_new("Output file path:");
+    gtk_widget_set_halign(path_label, GTK_ALIGN_START);
+    gtk_box_append(GTK_BOX(box), path_label);
+
+    GtkWidget *path_entry = gtk_entry_new();
+    gtk_editable_set_text(GTK_EDITABLE(path_entry), "child_process_output.txt");
+    gtk_box_append(GTK_BOX(box), path_entry);
+
+    GtkWidget *interval_label = gtk_label_new("Repeat interval in seconds:");
+    gtk_widget_set_halign(interval_label, GTK_ALIGN_START);
+    gtk_box_append(GTK_BOX(box), interval_label);
+
+    GtkWidget *interval_spin = gtk_spin_button_new_with_range(1, 60, 1);
+    gtk_spin_button_set_value(GTK_SPIN_BUTTON(interval_spin), 5);
+    gtk_box_append(GTK_BOX(box), interval_spin);
+
     gtk_box_append(GTK_BOX(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), box);
     g_object_set_data(G_OBJECT(dialog), "spin", spin);
+    g_object_set_data(G_OBJECT(dialog), "task-combo", task_combo);
+    g_object_set_data(G_OBJECT(dialog), "path-entry", path_entry);
+    g_object_set_data(G_OBJECT(dialog), "interval-spin", interval_spin);
     g_signal_connect(dialog, "response", G_CALLBACK(on_child_response), page);
     gtk_window_present(GTK_WINDOW(dialog));
 }

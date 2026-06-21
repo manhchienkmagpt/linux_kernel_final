@@ -21,7 +21,7 @@
 - Search loc theo PID hoac ten process.
 - Refresh goi `get_process_list`.
 - Kill Process doc PID dang chon, mo dialog xac nhan, sau do goi `kill_process_by_pid`.
-- Create Child Process mo dialog nhap so luong, sau do goi `fork_demo` nhieu lan.
+- Create Child Process mo dialog nhap so luong, chon task, file output, interval, sau do goi `fork_child_task` nhieu lan.
 
 ## File Page
 
@@ -62,7 +62,7 @@
 
 ## Backend giu nguyen
 
-- `process_utils.c/.h`: `ps`, `kill`, `fork`.
+- `process_utils.c/.h`: `ps`, `kill`, `fork`, child task chay nen den khi bi kill.
 - `file_syscall.c/.h`: `open`, `read`, `write`, `close`.
 - `socket_demo.c/.h`: TCP server/client.
 - `network_info.c/.h`: liet ke interface bang `getifaddrs`.
