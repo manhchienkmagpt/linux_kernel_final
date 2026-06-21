@@ -390,29 +390,76 @@ GTK khong nen duoc cap nhat truc tiep tu thread phu. Vi vay UI socket dua log tu
 
 ## 10. Network Page
 
-Trang Network gom danh sach interface ben trai va chi tiet ben phai.
+Trang Network duoc nang cap thanh 3 tab:
 
-Backend `network_info.c` dung:
+- Packet Log
+- Connection Viewer
+- Traffic Monitor
+
+Backend moi nam trong `network_manager.c/.h`. File `network_info.c` van duoc giu cho cac thong tin network tong quan cu.
+
+### Packet Log
+
+Packet Log co:
+
+- ComboBox chon interface tu `/sys/class/net`.
+- ComboBox filter `ALL`, `TCP`, `UDP`, `ICMP`.
+- Nut Start Capture.
+- Nut Stop Capture.
+- Nut Clear.
+- Bang gom Time, Protocol, Source IP, Destination IP, Length.
+
+Backend uu tien raw socket:
 
 ```c
-getifaddrs(&ifaddr)
+socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))
 ```
 
-de lay danh sach dia chi cua cac interface. Voi tung interface, code kiem tra `sa_family`:
+Neu user khong co quyen root/sudo, raw socket se fail voi `EPERM` hoac `EACCES`, UI ghi loi:
 
-- `AF_INET`: IPv4
-- `AF_INET6`: IPv6
+```text
+Packet capture requires sudo/root permission
+```
 
-Sau do dung `getnameinfo()` de doi dia chi ve chuoi de doc.
+Capture chay trong thread rieng bang `g_thread_new`, nen GTK UI khong bi treo. Moi packet duoc parse Ethernet/IP de lay protocol, source IP, destination IP va length. Thread capture khong cap nhat GTK truc tiep; no dua packet ve main loop bang `g_idle_add`.
 
-Ngoai ra UI doc cac file trong `/sys/class/net/<iface>/`:
+### Connection Viewer
 
-- `address`: MAC address.
-- `operstate`: trang thai UP/DOWN.
-- `statistics/tx_bytes`: byte da gui.
-- `statistics/rx_bytes`: byte da nhan.
+Connection Viewer co Refresh, Search, filter protocol va bang:
 
-Day la cach Linux expose thong tin thiet bi network qua filesystem ao `/sys`.
+- Protocol
+- Local Address
+- Remote Address
+- State
+- PID/Program
+
+Backend chay:
+
+```bash
+ss -tunap
+```
+
+Lenh nay duoc chay trong thread rieng, sau do parse output va dua ket qua ve UI. Search loc theo IP, port, process name hoac PID. Neu user khong co quyen xem PID/program cua mot so connection, cot PID/Program co the la `N/A` hoac thieu thong tin, nhung protocol/address/state van hien neu `ss` tra ve.
+
+### Traffic Monitor
+
+Traffic Monitor doc du lieu tu:
+
+```text
+/sys/class/net/<interface>/statistics/rx_bytes
+/sys/class/net/<interface>/statistics/tx_bytes
+```
+
+Khi bam Start Monitor, UI goi `g_timeout_add_seconds(1, ...)` de cap nhat moi 1 giay. Toc do duoc tinh theo cong thuc:
+
+```text
+download_speed = (rx_now - rx_prev) / time_delta
+upload_speed = (tx_now - tx_prev) / time_delta
+```
+
+Dung luong va toc do duoc format thanh B, KB, MB, GB. Khi bam Stop Monitor, timer bi xoa bang `g_source_remove`.
+
+Moi thao tac Start/Stop/Refresh deu ghi vao Log Page chung.
 
 ## 11. Log Page
 
@@ -464,5 +511,5 @@ Hoac:
 - Process demo dung `ps`, `kill`, `fork`, child process chay nen va dung `SIGTERM` de ket thuc.
 - File demo dung syscall cap thap `open/read/write/close`.
 - Socket demo dung TCP server/client va thread.
-- Network demo lay thong tin tu `getifaddrs` va `/sys/class/net`.
+- Network demo co Packet Log bang raw socket, Connection Viewer bang `ss -tunap`, Traffic Monitor bang `/sys/class/net`.
 - Khi thread phu muon cap nhat UI GTK, nen dua viec cap nhat ve main loop bang `g_idle_add`.

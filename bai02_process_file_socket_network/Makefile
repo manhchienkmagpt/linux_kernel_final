@@ -13,6 +13,7 @@ SRC=src/main.c \
     src/process_utils.c \
     src/file_syscall.c \
     src/socket_demo.c \
+    src/network_manager.c \
     src/network_info.c
 
 .PHONY: all run clean

@@ -69,13 +69,23 @@ Socket Page la mini chat app:
 
 ## `src/ui_network_page.c`
 
-Network Page gom list interface va panel chi tiet:
+Network Page gom 3 tab:
 
-- Interface list doc tu `/sys/class/net`.
-- IPv4 lay bang `getifaddrs`.
-- MAC doc tu `/sys/class/net/<iface>/address`.
-- State doc tu `/sys/class/net/<iface>/operstate`.
-- Bytes sent/received doc tu `/sys/class/net/<iface>/statistics`.
+- Packet Log: chon interface, filter ALL/TCP/UDP/ICMP, Start/Stop Capture va bang Time/Protocol/Source/Destination/Length.
+- Connection Viewer: Refresh, Search, filter ALL/TCP/UDP va bang Protocol/Local/Remote/State/PID Program.
+- Traffic Monitor: chon interface, Start/Stop Monitor, Refresh Interfaces va hien download/upload speed, RX/TX total.
+
+## `src/network_manager.c`
+
+Backend network moi:
+
+- Liet ke interface tu `/sys/class/net`.
+- Packet capture dung raw socket `socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))`.
+- Neu khong co quyen raw socket thi tra loi `"Packet capture requires sudo/root permission"`.
+- Packet capture chay trong thread rieng va dua packet ve UI bang callback.
+- Connection Viewer chay `ss -tunap`, parse output va loc theo protocol/search.
+- Traffic Monitor doc `/sys/class/net/<iface>/statistics/rx_bytes` va `tx_bytes`.
+- Format dung luong theo B/KB/MB/GB.
 
 ## `src/ui_log_page.c`
 
@@ -87,3 +97,4 @@ Log Page cung cap `log_page_append`. Moi page nhan `AppContext`, tu do ghi vao L
 - `file_syscall.c`: doc/ghi file bang syscall cap thap.
 - `socket_demo.c`: TCP server/client su dung `socket`, `bind`, `listen`, `accept`, `connect`, `send`, `recv`; server giu danh sach client va broadcast message.
 - `network_info.c`: liet ke interface bang `getifaddrs`.
+- `network_manager.c`: packet capture, connection viewer va traffic monitor.

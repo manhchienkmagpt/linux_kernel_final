@@ -45,15 +45,25 @@
 ## Network Page
 
 - File: `ui_network_page.c/.h`
-- List interface ben trai lay tu `/sys/class/net`.
-- Panel chi tiet ben phai:
-  - Interface Name
-  - IPv4
-  - MAC
-  - State
-  - Bytes Sent
-  - Bytes Received
-- IPv4 lay bang `getifaddrs`; MAC/state/bytes lay tu `/sys/class/net/<iface>`.
+- Backend: `network_manager.c/.h`
+- Layout la notebook/stack con gom 3 tab:
+  - Packet Log
+  - Connection Viewer
+  - Traffic Monitor
+- Packet Log:
+  - Chon interface tu `/sys/class/net`.
+  - Filter ALL/TCP/UDP/ICMP.
+  - Start Capture tao raw socket `AF_PACKET`.
+  - Capture chay trong thread rieng.
+  - Neu thieu quyen hien loi can sudo/root.
+- Connection Viewer:
+  - Refresh chay `ss -tunap` trong thread rieng.
+  - Parse Protocol, Local Address, Remote Address, State, PID/Program.
+  - Search theo IP, port, process name hoac PID.
+- Traffic Monitor:
+  - Doc `rx_bytes` va `tx_bytes` trong `/sys/class/net/<iface>/statistics`.
+  - Tinh toc do moi giay bang `g_timeout_add_seconds`.
+  - Stop Monitor xoa timer.
 
 ## Log Page
 
@@ -68,3 +78,4 @@
 - `file_syscall.c/.h`: `open`, `read`, `write`, `close`.
 - `socket_demo.c/.h`: TCP server/client.
 - `network_info.c/.h`: liet ke interface bang `getifaddrs`.
+- `network_manager.c/.h`: raw packet capture, parse `ss`, doc traffic statistics.
