@@ -22,7 +22,7 @@
 ## Input connect / disconnect
 
 - `mouse_connect`:
-  - Duoc goi khi input subsystem tim thay device match chuot `EV_REL` hoac touchpad `EV_ABS`.
+  - Duoc goi khi input subsystem tim thay device match `REL_X/REL_Y`, `ABS_X/ABS_Y` hoac `ABS_MT_POSITION_X/Y`.
   - Tao `input_handle`.
   - Goi `input_register_handle`.
   - Goi `input_open_device` de bat dau nhan event.
@@ -69,6 +69,7 @@ Tra ve:
 
 ```text
 connected=1
+devices=1
 left=0
 right=0
 middle=0

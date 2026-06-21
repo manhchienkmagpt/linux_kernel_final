@@ -14,6 +14,7 @@
 
 struct mouse_status {
     bool connected;
+    int devices;
     int left;
     int right;
     int middle;
@@ -50,6 +51,7 @@ static bool has_bit(const unsigned long *bitmap, unsigned int bit)
 static void set_connected_locked(void)
 {
     current_status.connected = connected_devices > 0;
+    current_status.devices = connected_devices;
     if (!current_status.connected) {
         current_status.left = 0;
         current_status.right = 0;
@@ -68,7 +70,6 @@ static bool is_pointer_device(struct input_dev *dev)
     bool relative_mouse;
     bool absolute_pointer;
     bool multitouch_pointer;
-    bool pointer_button;
 
     if (!dev)
         return false;
@@ -85,12 +86,7 @@ static bool is_pointer_device(struct input_dev *dev)
                          has_bit(dev->absbit, ABS_MT_POSITION_X) &&
                          has_bit(dev->absbit, ABS_MT_POSITION_Y);
 
-    pointer_button = !has_bit(dev->evbit, EV_KEY) ||
-                     has_bit(dev->keybit, BTN_LEFT) ||
-                     has_bit(dev->keybit, BTN_TOUCH) ||
-                     has_bit(dev->keybit, BTN_TOOL_FINGER);
-
-    return pointer_button && (relative_mouse || absolute_pointer || multitouch_pointer);
+    return relative_mouse || absolute_pointer || multitouch_pointer;
 }
 
 static bool is_mouse_event(unsigned int type, unsigned int code)
@@ -304,6 +300,7 @@ static ssize_t proc_status_read(struct file *file, char __user *user_buffer,
 
     len = scnprintf(buffer, sizeof(buffer),
                     "connected=%d\n"
+                    "devices=%d\n"
                     "left=%d\n"
                     "right=%d\n"
                     "middle=%d\n"
@@ -311,6 +308,7 @@ static ssize_t proc_status_read(struct file *file, char __user *user_buffer,
                     "dy=%d\n"
                     "wheel=%d\n",
                     snapshot.connected ? 1 : 0,
+                    snapshot.devices,
                     snapshot.left,
                     snapshot.right,
                     snapshot.middle,
@@ -326,7 +324,31 @@ static const struct proc_ops proc_status_ops = {
 };
 
 static const struct input_device_id mouse_ids[] = {
-    { .driver_info = 1 },
+    {
+        .flags = INPUT_DEVICE_ID_MATCH_EVBIT |
+                 INPUT_DEVICE_ID_MATCH_RELBIT,
+        .evbit = { BIT_MASK(EV_REL) },
+        .relbit = {
+            [BIT_WORD(REL_X)] = BIT_MASK(REL_X) | BIT_MASK(REL_Y),
+        },
+    },
+    {
+        .flags = INPUT_DEVICE_ID_MATCH_EVBIT |
+                 INPUT_DEVICE_ID_MATCH_ABSBIT,
+        .evbit = { BIT_MASK(EV_ABS) },
+        .absbit = {
+            [BIT_WORD(ABS_X)] = BIT_MASK(ABS_X) | BIT_MASK(ABS_Y),
+        },
+    },
+    {
+        .flags = INPUT_DEVICE_ID_MATCH_EVBIT |
+                 INPUT_DEVICE_ID_MATCH_ABSBIT,
+        .evbit = { BIT_MASK(EV_ABS) },
+        .absbit = {
+            [BIT_WORD(ABS_MT_POSITION_X)] =
+                BIT_MASK(ABS_MT_POSITION_X) | BIT_MASK(ABS_MT_POSITION_Y),
+        },
+    },
     {}
 };
 MODULE_DEVICE_TABLE(input, mouse_ids);

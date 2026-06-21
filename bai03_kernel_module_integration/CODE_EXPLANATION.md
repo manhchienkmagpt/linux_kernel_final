@@ -18,10 +18,9 @@ Input subsystem cho phep module dang ky mot handler de nghe event tu device chuo
 
 Module match device co:
 
-- `EV_KEY`
-- `BTN_LEFT`
-- `EV_REL + REL_X + REL_Y` voi chuot tuong doi
-- hoac `EV_ABS + ABS_X + ABS_Y` voi touchpad
+- `EV_REL + REL_X + REL_Y` voi chuot tuong doi.
+- Hoac `EV_ABS + ABS_X + ABS_Y` voi touchpad.
+- Hoac `EV_ABS + ABS_MT_POSITION_X + ABS_MT_POSITION_Y` voi multi-touch touchpad.
 
 Day la dau hieu cua mot thiet bi co hanh vi giong chuot/touchpad.
 

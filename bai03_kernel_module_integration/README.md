@@ -28,6 +28,7 @@ Output:
 
 ```text
 connected=1
+devices=1
 left=0
 right=0
 middle=0
@@ -39,7 +40,7 @@ wheel=0
 ## Cach module doc chuot
 
 - Khong chiem quyen dieu khien chuot khoi driver goc.
-- Doc su kien chuot/touchpad hien co neu device xuat `EV_REL`, `EV_ABS` hoac multi-touch position.
+- Doc su kien chuot/touchpad hien co neu device xuat `REL_X/REL_Y`, `ABS_X/ABS_Y` hoac `ABS_MT_POSITION_X/Y`.
 - Van khong hook syscall va khong can thiep syscall table.
 
 ## Giao dien
@@ -88,6 +89,28 @@ make run
 4. Di chuyen/click/cuon chuot dang dung tren Ubuntu.
 5. Vao Mouse Status, bam Refresh Status.
 6. Vao Event Log, bam Filter mouse_monitor.
+
+## Neu `/proc/mouse_monitor` luon connected=0
+
+Hay rebuild va load lai module moi:
+
+```bash
+sudo rmmod mouse_monitor 2>/dev/null
+make clean
+make
+sudo insmod src/mouse_monitor.ko
+dmesg | grep mouse_monitor
+```
+
+Neu module bat duoc chuot, `dmesg` se co dong gan giong:
+
+```text
+mouse_monitor: pointer connected name="..."
+```
+
+Va `/proc/mouse_monitor` se co `devices=1` hoac lon hon.
+
+Tren VMware, ten device co the la `VirtualPS/2 VMware VMMouse`, `VMware VMware Virtual Mouse` hoac mot thiet bi input ao khac.
 
 ## dx/dy la gi
 

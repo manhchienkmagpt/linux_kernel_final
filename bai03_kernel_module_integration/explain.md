@@ -39,10 +39,11 @@ Module khong hook syscall table va khong can thiep vao driver chuot goc. No lam 
 Module match device co cac kha nang:
 
 ```text
-EV_KEY + BTN_LEFT
 EV_REL + REL_X + REL_Y
 hoac
 EV_ABS + ABS_X + ABS_Y
+hoac
+EV_ABS + ABS_MT_POSITION_X + ABS_MT_POSITION_Y
 ```
 
 Day la dau hieu co ban cua chuot/touchpad.
@@ -88,6 +89,7 @@ Kernel tra ve trang thai hien tai:
 
 ```text
 connected=1
+devices=1
 left=0
 right=0
 middle=0
