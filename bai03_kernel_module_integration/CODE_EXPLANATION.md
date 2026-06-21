@@ -2,56 +2,54 @@
 
 ## Tong quan
 
-Bai 03 la **USB Mouse Monitor**. Kernel module `usb_mouse_monitor` theo doi USB HID mouse report va GUI GTK hien trang thai chuot.
+Bai 03 la **Ubuntu Mouse Monitor**. Kernel module `usb_mouse_monitor` theo doi su kien chuot hien co tren Ubuntu thong qua Linux input subsystem va GUI GTK hien trang thai chuot.
 
-## Vi sao dung usb_driver
+## Vi sao dung input_handler
 
-Module dang ky `usb_driver` thay vi hook syscall. USB core se goi `probe` khi co interface phu hop. Cach nay dung API kernel hop le, co cleanup ro rang va khong can can thiep syscall table.
+Ban truoc dung `usb_driver`, nen module chi doc duoc chuot USB khi bind truc tiep vao thiet bi. Tren Ubuntu, chuot USB thuong da do `usbhid` quan ly, vi vay phai unbind/bind thu cong va co the lam chuot tam thoi mat tac dung.
 
-Luu y: chuot USB tren Ubuntu thuong da do `usbhid` quan ly. Neu `usbhid` da bind thiet bi, module demo co the khong nhan probe cho den khi unbind/bind thu cong.
+Ban hien tai dung `input_handler`. Input subsystem cho phep module dang ky mot handler de nghe event tu device da ton tai, vi vay:
 
-Vi the nen demo voi chuot USB phu. Interface co the tim trong `/sys/bus/usb/drivers/usbhid/`, vi du `1-2:1.0`. Sau khi load module, co the unbind khoi `usbhid` va bind sang driver moi:
-
-```bash
-sudo sh -c 'echo 1-2:1.0 > /sys/bus/usb/drivers/usbhid/unbind'
-sudo sh -c 'echo 1-2:1.0 > /sys/bus/usb/drivers/usb_mouse_monitor/bind'
-```
-
-Khi xong, bind lai `usbhid` de chuot hoat dong binh thuong.
+- Khong can chiem quyen cua `usbhid`.
+- Khong can hook syscall.
+- Co the nghe chuot USB, touchpad hoac thiet bi input tuong thich.
+- Cleanup ro rang bang API kernel chuan.
 
 ## `src/usb_mouse_monitor.c`
 
-### Device id
+### Match input device
 
-Module match USB HID boot mouse:
+Module match device co:
 
-```c
-USB_INTERFACE_INFO(USB_INTERFACE_CLASS_HID,
-                   USB_INTERFACE_SUBCLASS_BOOT,
-                   USB_INTERFACE_PROTOCOL_MOUSE)
-```
+- `EV_KEY`
+- `BTN_LEFT`
+- `EV_REL + REL_X + REL_Y` voi chuot tuong doi
+- hoac `EV_ABS + ABS_X + ABS_Y` voi touchpad
 
-### Probe
+Day la dau hieu cua mot thiet bi co hanh vi giong chuot/touchpad.
 
-`mouse_probe`:
+### Connect
 
-- Lay `usb_device` tu interface.
-- Tim interrupt IN endpoint.
-- Cap phat `usb_alloc_coherent`.
-- Cap phat `usb_alloc_urb`.
-- Goi `usb_fill_int_urb`.
-- Submit URB bang `usb_submit_urb`.
+`mouse_connect`:
 
-### Interrupt callback
+- Cap phat `input_handle`.
+- Gan `handle->dev`, `handle->handler`, `handle->name`.
+- Goi `input_register_handle`.
+- Goi `input_open_device`.
+- Cap nhat `connected=1`.
 
-`mouse_irq_callback` nhan data tu chuot. Neu URB thanh cong, code parse report:
+### Event
 
-- `data[0]`: nut left/right/middle.
-- `data[1]`: dx.
-- `data[2]`: dy.
-- `data[3]`: wheel neu co.
+`mouse_event` nhan event tu input subsystem:
 
-Sau khi parse xong, callback submit lai URB de tiep tuc nhan report.
+- `EV_KEY + BTN_LEFT`: nut trai.
+- `EV_KEY + BTN_RIGHT`: nut phai.
+- `EV_KEY + BTN_MIDDLE`: nut giua.
+- `EV_REL + REL_X`: dich chuyen ngang `dx`.
+- `EV_REL + REL_Y`: dich chuyen doc `dy`.
+- `EV_REL + REL_WHEEL`: cuon chuot.
+- `EV_ABS + ABS_X/ABS_Y`: touchpad gui toa do tuyet doi, module lay chenh lech voi gia tri truoc de tinh `dx/dy`.
+- `EV_SYN + SYN_REPORT`: ket thuc mot frame event, module ghi log neu co thay doi.
 
 ### Proc interface
 

@@ -5,58 +5,51 @@
 - File: `src/usb_mouse_monitor.c`
 - Module name: `usb_mouse_monitor`
 - User-space interface: `/proc/usb_mouse_monitor`
-- Dang ky `usb_driver` cho USB HID boot mouse.
+- Dang ky `input_handler` de nghe su kien tu chuot/touchpad hien co tren Ubuntu.
 
 ## Module init / exit
 
 - `usb_mouse_monitor_init`:
   - Tao proc entry `/proc/usb_mouse_monitor`.
-  - Dang ky USB driver.
+  - Dang ky input handler bang `input_register_handler`.
   - Log `usb_mouse_monitor loaded`.
 
 - `usb_mouse_monitor_exit`:
-  - Huy USB driver.
+  - Huy input handler bang `input_unregister_handler`.
   - Xoa proc entry.
   - Log `usb_mouse_monitor unloaded`.
 
-## USB probe / disconnect
+## Input connect / disconnect
 
-- `mouse_probe`:
-  - Duoc goi khi USB core bind duoc interface HID mouse vao module.
-  - Tim interrupt IN endpoint.
-  - Cap phat buffer DMA va URB.
-  - Submit interrupt URB de nhan mouse report.
-  - Cap nhat `connected=1`.
+- `mouse_connect`:
+  - Duoc goi khi input subsystem tim thay device match chuot `EV_REL` hoac touchpad `EV_ABS`.
+  - Tao `input_handle`.
+  - Goi `input_register_handle`.
+  - Goi `input_open_device` de bat dau nhan event.
+  - Tang so device dang ket noi va cap nhat `connected=1`.
 
 - `mouse_disconnect`:
-  - Kill URB.
-  - Giai phong buffer/URB/device.
-  - Cap nhat `connected=0`.
+  - Goi `input_close_device`.
+  - Goi `input_unregister_handle`.
+  - Giai phong handle.
+  - Giam so device dang ket noi va cap nhat `connected`.
 
-## Luu y bind driver
+## Input event handler
 
-- Chuot USB tren Ubuntu thuong dang duoc `usbhid` quan ly.
-- Neu module khong probe duoc, demo co the can unbind interface khoi `usbhid` roi bind sang `usb_mouse_monitor`.
-- Nen dung chuot USB phu vi chuot bi bind sang module monitor co the tam thoi khong dieu khien con tro.
-
-## URB interrupt callback
-
-- `mouse_irq_callback`:
-  - Nhan mouse report tu interrupt endpoint.
-  - Goi parser report.
-  - Submit lai URB de tiep tuc nhan report.
-
-## Parse HID mouse report
-
-Report co ban:
-
-- Byte 0: button bits.
-  - bit 0: left
-  - bit 1: right
-  - bit 2: middle
-- Byte 1: `dx`
-- Byte 2: `dy`
-- Byte 3 neu co: `wheel`
+- `mouse_event`:
+  - Nhan event tu input subsystem.
+  - Xu ly `EV_KEY` cho nut chuot:
+    - `BTN_LEFT`
+    - `BTN_RIGHT`
+    - `BTN_MIDDLE`
+  - Xu ly `EV_REL` cho dich chuyen:
+    - `REL_X` -> `dx`
+    - `REL_Y` -> `dy`
+    - `REL_WHEEL` -> `wheel`
+  - Xu ly `EV_ABS` cho touchpad:
+    - `ABS_X` -> tinh delta ngang
+    - `ABS_Y` -> tinh delta doc
+  - Khi nhan `SYN_REPORT`, cap nhat frame dich chuyen gan nhat va ghi log.
 
 Log format:
 

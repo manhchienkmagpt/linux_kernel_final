@@ -13,11 +13,11 @@ static void on_destroy(GtkWidget *widget, gpointer user_data) {
 
 GtkWidget *ui_main_window_new(GtkApplication *app) {
     GtkWidget *window = gtk_application_window_new(app);
-    gtk_window_set_title(GTK_WINDOW(window), "USB Mouse Monitor");
+    gtk_window_set_title(GTK_WINDOW(window), "Ubuntu Mouse Monitor");
     gtk_window_set_default_size(GTK_WINDOW(window), 1100, 700);
 
     GtkWidget *header = gtk_header_bar_new();
-    GtkWidget *title = gtk_label_new("USB Mouse Monitor");
+    GtkWidget *title = gtk_label_new("Ubuntu Mouse Monitor");
     gtk_widget_add_css_class(title, "title-3");
     gtk_header_bar_set_title_widget(GTK_HEADER_BAR(header), title);
     gtk_window_set_titlebar(GTK_WINDOW(window), header);

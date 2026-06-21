@@ -1,13 +1,12 @@
-#include <linux/init.h>
 #include <linux/fs.h>
-#include <linux/hid.h>
+#include <linux/init.h>
+#include <linux/input.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/proc_fs.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
-#include <linux/usb.h>
 
 #define MODULE_TAG "usb_mouse_monitor"
 #define PROC_NAME "usb_mouse_monitor"
@@ -23,216 +22,215 @@ struct mouse_status {
     int wheel;
 };
 
-struct mouse_device {
-    struct usb_device *udev;
-    struct usb_interface *interface;
-    struct urb *irq_urb;
-    unsigned char *data;
-    dma_addr_t data_dma;
-    int data_size;
-    unsigned char endpoint_addr;
+struct monitor_handle {
+    struct input_handle handle;
+    bool abs_x_initialized;
+    bool abs_y_initialized;
+    int last_abs_x;
+    int last_abs_y;
 };
 
 static struct proc_dir_entry *proc_entry;
-static struct mouse_device *monitored_mouse;
 static struct mouse_status current_status;
 static spinlock_t status_lock;
+static int connected_devices;
+static int frame_dx;
+static int frame_dy;
+static int frame_wheel;
 
-static void update_connected(bool connected)
+static void set_connected_locked(void)
 {
-    unsigned long flags;
-
-    spin_lock_irqsave(&status_lock, flags);
-    current_status.connected = connected;
-    if (!connected) {
+    current_status.connected = connected_devices > 0;
+    if (!current_status.connected) {
         current_status.left = 0;
         current_status.right = 0;
         current_status.middle = 0;
         current_status.dx = 0;
         current_status.dy = 0;
         current_status.wheel = 0;
+        frame_dx = 0;
+        frame_dy = 0;
+        frame_wheel = 0;
     }
-    spin_unlock_irqrestore(&status_lock, flags);
 }
 
-static void parse_mouse_report(const unsigned char *data, int len)
+static bool is_mouse_event(unsigned int type, unsigned int code)
 {
-    unsigned long flags;
-    int left;
-    int right;
-    int middle;
-    int dx;
-    int dy;
-    int wheel = 0;
+    if (type == EV_KEY)
+        return code == BTN_LEFT || code == BTN_RIGHT || code == BTN_MIDDLE;
 
-    if (!data || len < 3)
+    if (type == EV_REL)
+        return code == REL_X || code == REL_Y || code == REL_WHEEL;
+
+    if (type == EV_ABS)
+        return code == ABS_X || code == ABS_Y;
+
+    return type == EV_SYN && code == SYN_REPORT;
+}
+
+static void log_snapshot(const struct mouse_status *snapshot)
+{
+    if (!snapshot)
         return;
 
-    left = !!(data[0] & 0x01);
-    right = !!(data[0] & 0x02);
-    middle = !!(data[0] & 0x04);
-    dx = (signed char)data[1];
-    dy = (signed char)data[2];
-    if (len >= 4)
-        wheel = (signed char)data[3];
+    pr_info("[%s] left=%d right=%d middle=%d dx=%d dy=%d wheel=%d\n",
+            MODULE_TAG,
+            snapshot->left,
+            snapshot->right,
+            snapshot->middle,
+            snapshot->dx,
+            snapshot->dy,
+            snapshot->wheel);
+}
+
+static void mouse_event(struct input_handle *handle,
+                        unsigned int type,
+                        unsigned int code,
+                        int value)
+{
+    unsigned long flags;
+    bool button_changed = false;
+    bool should_log = false;
+    struct mouse_status snapshot;
+    struct monitor_handle *monitor;
+
+    if (!is_mouse_event(type, code))
+        return;
+
+    monitor = container_of(handle, struct monitor_handle, handle);
 
     spin_lock_irqsave(&status_lock, flags);
     current_status.connected = true;
-    current_status.left = left;
-    current_status.right = right;
-    current_status.middle = middle;
-    current_status.dx = dx;
-    current_status.dy = dy;
-    current_status.wheel = wheel;
+
+    if (type == EV_KEY) {
+        int pressed = value ? 1 : 0;
+
+        if (code == BTN_LEFT && current_status.left != pressed) {
+            current_status.left = pressed;
+            button_changed = true;
+        } else if (code == BTN_RIGHT && current_status.right != pressed) {
+            current_status.right = pressed;
+            button_changed = true;
+        } else if (code == BTN_MIDDLE && current_status.middle != pressed) {
+            current_status.middle = pressed;
+            button_changed = true;
+        }
+    } else if (type == EV_REL) {
+        if (code == REL_X)
+            frame_dx += value;
+        else if (code == REL_Y)
+            frame_dy += value;
+        else if (code == REL_WHEEL)
+            frame_wheel += value;
+    } else if (type == EV_ABS) {
+        if (code == ABS_X) {
+            if (monitor->abs_x_initialized)
+                frame_dx += value - monitor->last_abs_x;
+            monitor->last_abs_x = value;
+            monitor->abs_x_initialized = true;
+        } else if (code == ABS_Y) {
+            if (monitor->abs_y_initialized)
+                frame_dy += value - monitor->last_abs_y;
+            monitor->last_abs_y = value;
+            monitor->abs_y_initialized = true;
+        }
+    } else if (type == EV_SYN && code == SYN_REPORT) {
+        current_status.dx = frame_dx;
+        current_status.dy = frame_dy;
+        current_status.wheel = frame_wheel;
+        should_log = button_changed || frame_dx || frame_dy || frame_wheel;
+        frame_dx = 0;
+        frame_dy = 0;
+        frame_wheel = 0;
+    }
+
+    if (button_changed && type == EV_KEY) {
+        current_status.dx = 0;
+        current_status.dy = 0;
+        current_status.wheel = 0;
+        should_log = true;
+    }
+
+    if (should_log)
+        snapshot = current_status;
+
     spin_unlock_irqrestore(&status_lock, flags);
 
-    if (left || right || middle || dx || dy || wheel) {
-        pr_info("[%s] left=%d right=%d middle=%d dx=%d dy=%d wheel=%d\n",
-                MODULE_TAG, left, right, middle, dx, dy, wheel);
-    }
+    if (should_log)
+        log_snapshot(&snapshot);
 }
 
-static void mouse_irq_callback(struct urb *urb)
+static int mouse_connect(struct input_handler *handler,
+                         struct input_dev *dev,
+                         const struct input_device_id *id)
 {
-    struct mouse_device *mouse = urb->context;
+    struct input_handle *handle;
+    struct monitor_handle *monitor;
+    unsigned long flags;
     int ret;
-
-    if (!mouse)
-        return;
-
-    switch (urb->status) {
-    case 0:
-        parse_mouse_report(mouse->data, urb->actual_length);
-        break;
-    case -ECONNRESET:
-    case -ENOENT:
-    case -ESHUTDOWN:
-        return;
-    default:
-        break;
-    }
-
-    ret = usb_submit_urb(urb, GFP_ATOMIC);
-    if (ret)
-        pr_warn("%s: usb_submit_urb failed: %d\n", MODULE_TAG, ret);
-}
-
-static int mouse_probe(struct usb_interface *interface, const struct usb_device_id *id)
-{
-    struct usb_device *udev = interface_to_usbdev(interface);
-    struct usb_host_interface *iface_desc;
-    struct usb_endpoint_descriptor *endpoint = NULL;
-    struct mouse_device *mouse;
-    int pipe;
-    int maxp;
-    int ret;
-    int i;
 
     (void)id;
 
-    if (monitored_mouse) {
-        pr_info("%s: another mouse is already monitored\n", MODULE_TAG);
-        return -EBUSY;
-    }
-
-    iface_desc = interface->cur_altsetting;
-    if (!iface_desc)
-        return -ENODEV;
-
-    for (i = 0; i < iface_desc->desc.bNumEndpoints; i++) {
-        endpoint = &iface_desc->endpoint[i].desc;
-        if (usb_endpoint_is_int_in(endpoint))
-            break;
-        endpoint = NULL;
-    }
-    if (!endpoint) {
-        pr_warn("%s: interrupt IN endpoint not found\n", MODULE_TAG);
-        return -ENODEV;
-    }
-
-    mouse = kzalloc(sizeof(*mouse), GFP_KERNEL);
-    if (!mouse)
+    monitor = kzalloc(sizeof(*monitor), GFP_KERNEL);
+    if (!monitor)
         return -ENOMEM;
 
-    mouse->udev = usb_get_dev(udev);
-    mouse->interface = interface;
-    mouse->endpoint_addr = endpoint->bEndpointAddress;
-    mouse->data_size = usb_endpoint_maxp(endpoint);
-    if (mouse->data_size < 4)
-        mouse->data_size = 4;
+    handle = &monitor->handle;
+    handle->dev = dev;
+    handle->handler = handler;
+    handle->name = MODULE_TAG;
 
-    mouse->data = usb_alloc_coherent(mouse->udev, mouse->data_size,
-                                     GFP_KERNEL, &mouse->data_dma);
-    if (!mouse->data) {
-        ret = -ENOMEM;
-        goto fail_free_mouse;
-    }
+    ret = input_register_handle(handle);
+    if (ret)
+        goto fail_free;
 
-    mouse->irq_urb = usb_alloc_urb(0, GFP_KERNEL);
-    if (!mouse->irq_urb) {
-        ret = -ENOMEM;
-        goto fail_free_buffer;
-    }
+    ret = input_open_device(handle);
+    if (ret)
+        goto fail_unregister;
 
-    pipe = usb_rcvintpipe(mouse->udev, mouse->endpoint_addr);
-    maxp = usb_maxpacket(mouse->udev, pipe);
-    if (maxp > mouse->data_size)
-        maxp = mouse->data_size;
+    spin_lock_irqsave(&status_lock, flags);
+    connected_devices++;
+    set_connected_locked();
+    spin_unlock_irqrestore(&status_lock, flags);
 
-    usb_fill_int_urb(mouse->irq_urb, mouse->udev, pipe, mouse->data, maxp,
-                     mouse_irq_callback, mouse, endpoint->bInterval);
-    mouse->irq_urb->transfer_dma = mouse->data_dma;
-    mouse->irq_urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
-
-    usb_set_intfdata(interface, mouse);
-    monitored_mouse = mouse;
-    update_connected(true);
-
-    ret = usb_submit_urb(mouse->irq_urb, GFP_KERNEL);
-    if (ret) {
-        pr_err("%s: usb_submit_urb failed: %d\n", MODULE_TAG, ret);
-        monitored_mouse = NULL;
-        usb_set_intfdata(interface, NULL);
-        update_connected(false);
-        goto fail_free_urb;
-    }
-
-    pr_info("%s: USB mouse connected vendor=%04x product=%04x\n",
-            MODULE_TAG, le16_to_cpu(udev->descriptor.idVendor),
-            le16_to_cpu(udev->descriptor.idProduct));
+    pr_info("%s: input mouse connected name=\"%s\" phys=\"%s\"\n",
+            MODULE_TAG,
+            dev->name ? dev->name : "unknown",
+            dev->phys ? dev->phys : "unknown");
     return 0;
 
-fail_free_urb:
-    usb_free_urb(mouse->irq_urb);
-fail_free_buffer:
-    usb_free_coherent(mouse->udev, mouse->data_size, mouse->data, mouse->data_dma);
-fail_free_mouse:
-    usb_put_dev(mouse->udev);
-    kfree(mouse);
+fail_unregister:
+    input_unregister_handle(handle);
+fail_free:
+    kfree(monitor);
     return ret;
 }
 
-static void mouse_disconnect(struct usb_interface *interface)
+static void mouse_disconnect(struct input_handle *handle)
 {
-    struct mouse_device *mouse = usb_get_intfdata(interface);
+    unsigned long flags;
+    struct input_dev *dev = handle ? handle->dev : NULL;
+    struct monitor_handle *monitor;
 
-    usb_set_intfdata(interface, NULL);
-    if (!mouse)
+    if (!handle)
         return;
 
-    if (mouse->irq_urb)
-        usb_kill_urb(mouse->irq_urb);
+    monitor = container_of(handle, struct monitor_handle, handle);
 
-    if (monitored_mouse == mouse)
-        monitored_mouse = NULL;
+    input_close_device(handle);
+    input_unregister_handle(handle);
 
-    update_connected(false);
-    pr_info("%s: USB mouse disconnected\n", MODULE_TAG);
+    spin_lock_irqsave(&status_lock, flags);
+    if (connected_devices > 0)
+        connected_devices--;
+    set_connected_locked();
+    spin_unlock_irqrestore(&status_lock, flags);
 
-    usb_free_urb(mouse->irq_urb);
-    usb_free_coherent(mouse->udev, mouse->data_size, mouse->data, mouse->data_dma);
-    usb_put_dev(mouse->udev);
-    kfree(mouse);
+    pr_info("%s: input mouse disconnected name=\"%s\"\n",
+            MODULE_TAG,
+            dev && dev->name ? dev->name : "unknown");
+
+    kfree(monitor);
 }
 
 static ssize_t proc_status_read(struct file *file, char __user *user_buffer,
@@ -242,6 +240,8 @@ static ssize_t proc_status_read(struct file *file, char __user *user_buffer,
     unsigned long flags;
     char buffer[STATUS_BUF_LEN];
     int len;
+
+    (void)file;
 
     spin_lock_irqsave(&status_lock, flags);
     snapshot = current_status;
@@ -270,19 +270,37 @@ static const struct proc_ops proc_status_ops = {
     .proc_read = proc_status_read,
 };
 
-static const struct usb_device_id mouse_table[] = {
-    { USB_INTERFACE_INFO(USB_INTERFACE_CLASS_HID,
-                         USB_INTERFACE_SUBCLASS_BOOT,
-                         USB_INTERFACE_PROTOCOL_MOUSE) },
+static const struct input_device_id mouse_ids[] = {
+    {
+        .flags = INPUT_DEVICE_ID_MATCH_EVBIT |
+                 INPUT_DEVICE_ID_MATCH_KEYBIT |
+                 INPUT_DEVICE_ID_MATCH_RELBIT,
+        .evbit = { BIT_MASK(EV_KEY) | BIT_MASK(EV_REL) },
+        .keybit = { [BIT_WORD(BTN_LEFT)] = BIT_MASK(BTN_LEFT) },
+        .relbit = {
+            [BIT_WORD(REL_X)] = BIT_MASK(REL_X) | BIT_MASK(REL_Y),
+        },
+    },
+    {
+        .flags = INPUT_DEVICE_ID_MATCH_EVBIT |
+                 INPUT_DEVICE_ID_MATCH_KEYBIT |
+                 INPUT_DEVICE_ID_MATCH_ABSBIT,
+        .evbit = { BIT_MASK(EV_KEY) | BIT_MASK(EV_ABS) },
+        .keybit = { [BIT_WORD(BTN_LEFT)] = BIT_MASK(BTN_LEFT) },
+        .absbit = {
+            [BIT_WORD(ABS_X)] = BIT_MASK(ABS_X) | BIT_MASK(ABS_Y),
+        },
+    },
     {}
 };
-MODULE_DEVICE_TABLE(usb, mouse_table);
+MODULE_DEVICE_TABLE(input, mouse_ids);
 
-static struct usb_driver mouse_driver = {
-    .name = MODULE_TAG,
-    .probe = mouse_probe,
+static struct input_handler mouse_handler = {
+    .event = mouse_event,
+    .connect = mouse_connect,
     .disconnect = mouse_disconnect,
-    .id_table = mouse_table,
+    .name = MODULE_TAG,
+    .id_table = mouse_ids,
 };
 
 static int __init usb_mouse_monitor_init(void)
@@ -291,6 +309,10 @@ static int __init usb_mouse_monitor_init(void)
 
     spin_lock_init(&status_lock);
     memset(&current_status, 0, sizeof(current_status));
+    connected_devices = 0;
+    frame_dx = 0;
+    frame_dy = 0;
+    frame_wheel = 0;
 
     proc_entry = proc_create(PROC_NAME, 0444, NULL, &proc_status_ops);
     if (!proc_entry) {
@@ -298,11 +320,11 @@ static int __init usb_mouse_monitor_init(void)
         return -ENOMEM;
     }
 
-    ret = usb_register(&mouse_driver);
+    ret = input_register_handler(&mouse_handler);
     if (ret) {
         proc_remove(proc_entry);
         proc_entry = NULL;
-        pr_err("%s: usb_register failed: %d\n", MODULE_TAG, ret);
+        pr_err("%s: input_register_handler failed: %d\n", MODULE_TAG, ret);
         return ret;
     }
 
@@ -312,7 +334,7 @@ static int __init usb_mouse_monitor_init(void)
 
 static void __exit usb_mouse_monitor_exit(void)
 {
-    usb_deregister(&mouse_driver);
+    input_unregister_handler(&mouse_handler);
     if (proc_entry)
         proc_remove(proc_entry);
     pr_info("%s unloaded\n", MODULE_TAG);
@@ -323,5 +345,5 @@ module_exit(usb_mouse_monitor_exit);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Linux Kernel Programming Student");
-MODULE_DESCRIPTION("USB HID mouse interrupt report monitor");
-MODULE_VERSION("1.0");
+MODULE_DESCRIPTION("Current Ubuntu mouse input event monitor");
+MODULE_VERSION("1.1");
