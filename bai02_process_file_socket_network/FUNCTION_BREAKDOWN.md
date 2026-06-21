@@ -37,7 +37,9 @@
 - File: `ui_socket_page.c/.h`
 - Mini chat app co Server/Client mode.
 - Server mode: Start goi `socket_server_start`, Stop goi `socket_server_stop`.
-- Client mode: Send goi `socket_client_send`.
+- Client mode: Start goi `socket_client_connect`, Stop goi `socket_client_disconnect`.
+- Client Send gui message len server; server broadcast lai cho moi client theo dang `Client: ...`.
+- Server Send broadcast message theo dang `Server: ...`.
 - Connection log hien trong TextView rieng va dong thoi ghi Log Page.
 
 ## Network Page

@@ -62,8 +62,12 @@ static void on_start(GtkButton *button, gpointer user_data) {
         log_page_append(page->ctx->log_page, ok == 0 ? "OK" : "ERROR", msg);
         g_free(msg);
     } else {
-        append_connection_log(page, "Client mode selected. Use Send to connect and transmit a message.");
-        log_page_append(page->ctx->log_page, "INFO", "Client mode ready.");
+        const char *host = gtk_editable_get_text(GTK_EDITABLE(page->ip_entry));
+        char *msg = NULL;
+        int ok = socket_client_connect(host, port, socket_log_callback, page, &msg);
+        append_connection_log(page, msg);
+        log_page_append(page->ctx->log_page, ok == 0 ? "OK" : "ERROR", msg);
+        g_free(msg);
     }
 }
 
@@ -71,6 +75,7 @@ static void on_stop(GtkButton *button, gpointer user_data) {
     (void)button;
     SocketPage *page = user_data;
     socket_server_stop(socket_log_callback, page);
+    socket_client_disconnect();
     append_connection_log(page, "Stop requested.");
     log_page_append(page->ctx->log_page, "INFO", "Socket stop requested.");
 }
@@ -78,18 +83,25 @@ static void on_stop(GtkButton *button, gpointer user_data) {
 static void on_send(GtkButton *button, gpointer user_data) {
     (void)button;
     SocketPage *page = user_data;
-    const char *host = gtk_editable_get_text(GTK_EDITABLE(page->ip_entry));
     int port = atoi(gtk_editable_get_text(GTK_EDITABLE(page->port_entry)));
     const char *message = gtk_editable_get_text(GTK_EDITABLE(page->message_entry));
-    if (!host || !*host || port <= 0 || !message || !*message) {
-        append_connection_log(page, "IP, port and message are required.");
+    if (port <= 0 || !message || !*message) {
+        append_connection_log(page, "Port and message are required.");
         log_page_append(page->ctx->log_page, "ERROR", "Socket send input is incomplete.");
         return;
     }
-    char *reply = socket_client_send(host, port, message);
-    append_connection_log(page, reply);
-    log_page_append(page->ctx->log_page, "INFO", reply);
-    g_free(reply);
+
+    char *status = NULL;
+    int ok = 0;
+    if (gtk_check_button_get_active(GTK_CHECK_BUTTON(page->server_radio))) {
+        ok = socket_server_broadcast_message(message, &status);
+    } else {
+        ok = socket_client_send_message(message, &status);
+    }
+
+    if (ok != 0) append_connection_log(page, status);
+    log_page_append(page->ctx->log_page, ok == 0 ? "INFO" : "ERROR", status);
+    g_free(status);
 }
 
 GtkWidget *ui_socket_page_new(AppContext *ctx) {

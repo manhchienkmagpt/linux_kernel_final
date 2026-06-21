@@ -60,8 +60,11 @@ Backend file van dung system call cap thap `open/read/write/close` trong `file_s
 Socket Page la mini chat app:
 
 - Server mode: Start tao TCP server bang `socket_server_start`.
-- Stop goi `socket_server_stop`.
-- Send tao TCP client bang `socket_client_send`, log message da gui va response server tra ve.
+- Client mode: Start ket noi den server bang `socket_client_connect`.
+- Stop goi `socket_server_stop` va `socket_client_disconnect`.
+- Send o Client mode gui message qua ket noi dang mo.
+- Send o Server mode broadcast message den tat ca client.
+- Log chat chi hien noi dung dang `Client: ...` hoac `Server: ...`.
 - Server log tu thread socket duoc dua ve GTK main loop bang `g_idle_add`.
 
 ## `src/ui_network_page.c`
@@ -82,5 +85,5 @@ Log Page cung cap `log_page_append`. Moi page nhan `AppContext`, tu do ghi vao L
 
 - `process_utils.c`: chay `ps`, goi `kill`, goi `fork`; child co the ghi date/heartbeat vao file va chay den khi user kill.
 - `file_syscall.c`: doc/ghi file bang syscall cap thap.
-- `socket_demo.c`: TCP server/client su dung `socket`, `bind`, `listen`, `accept`, `connect`, `send`, `recv`.
+- `socket_demo.c`: TCP server/client su dung `socket`, `bind`, `listen`, `accept`, `connect`, `send`, `recv`; server giu danh sach client va broadcast message.
 - `network_info.c`: liet ke interface bang `getifaddrs`.

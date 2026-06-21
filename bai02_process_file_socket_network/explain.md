@@ -301,9 +301,7 @@ Delete co dialog xac nhan, sau do xoa file bang `g_remove()`. Xoa la thao tac ma
 
 ## 9. Socket Page
 
-Trang Socket la mini chat app bang TCP.
-
-Backend nam trong `socket_demo.c`, gom server va client.
+Trang Socket la mini chat app bang TCP. Backend nam trong `socket_demo.c`, gom server, client va co che broadcast message.
 
 ### Bien trang thai server
 
@@ -313,7 +311,7 @@ static gboolean server_running = FALSE;
 static pthread_t server_thread;
 ```
 
-Vi server phai cho client ket noi, no chay trong thread rieng de khong lam treo giao dien GTK.
+Server phai cho nhieu client ket noi, nen no chay trong thread rieng de khong lam treo giao dien GTK. Server cung giu danh sach socket client dang ket noi trong `server_clients`.
 
 ### Start server
 
@@ -341,23 +339,35 @@ Trong vong lap:
 
 1. Goi `accept()` de cho client ket noi.
 2. Lay IP client bang `inet_ntop()`.
-3. Goi `recv()` de nhan message.
-4. Ghi log message nhan duoc.
-5. Goi `send()` de tra ve ACK kem noi dung server da nhan.
-6. Dong socket client.
+3. Them socket client vao danh sach `server_clients`.
+4. Tao thread rieng de nhan message tu client do.
 
-Server chi xu ly tung message ngan theo kieu request/response, khong phai chat realtime lien tuc.
+Thread cua moi client lap `recv()`. Khi nhan message, server format thanh:
+
+```text
+Client: noi dung
+```
+
+Sau do server hien dong nay tren log cua server va broadcast lai cho tat ca client dang ket noi. Vi broadcast ca ve client vua gui, nen client log se thay tin cua minh va tin cua cac client khac.
+
+Neu server UI bam Send, app goi `socket_server_broadcast_message()` va format thanh:
+
+```text
+Server: noi dung
+```
+
+Dong nay cung hien tren log server va duoc gui den tat ca client.
 
 ### Stop server
 
-`socket_server_stop()` dat `server_running = FALSE`, goi `shutdown()` va `close()` server socket de pha `accept()` dang cho. Sau do `pthread_join()` doi thread ket thuc.
+`socket_server_stop()` dat `server_running = FALSE`, goi `shutdown()` va `close()` server socket de pha `accept()` dang cho. Sau do shutdown cac client socket de cac thread client tu thoat.
 
-### Client send
+### Client connect va send
 
-Ham:
+Khi chon Client mode va bam Start, UI goi:
 
 ```c
-char *socket_client_send(const char *host, int port, const char *message)
+socket_client_connect(host, port, socket_log_callback, page, &message)
 ```
 
 lam cac buoc:
@@ -365,10 +375,14 @@ lam cac buoc:
 1. Tao socket.
 2. Chuyen IP text sang binary bang `inet_pton()`.
 3. Ket noi server bang `connect()`.
-4. Gui message bang `send()`.
-5. Nhan phan hoi bang `recv()`.
-6. Dong socket.
-7. Tra ve chuoi output cho UI, gom dong `Sent: ...` va `Server response: ...`.
+4. Tao thread nhan du lieu tu server.
+
+Khi bam Send o Client mode, UI goi `socket_client_send_message()`. Client chi gui noi dung goc len server. Server se gan tien to `Client:` va broadcast lai. Vi vay log tren client chi hien dang:
+
+```text
+Client: Xin chao
+Server: Chao ban
+```
 
 ### Cap nhat GTK tu thread
 

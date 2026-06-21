@@ -12,6 +12,7 @@ static void on_window_destroy(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     AppContext *ctx = user_data;
     socket_server_stop(NULL, NULL);
+    socket_client_disconnect();
     g_free(ctx->log_page);
     g_free(ctx);
 }
