@@ -9,6 +9,7 @@ APP_SRC=src/main.c \
 	src/ui_dashboard_page.c \
 	src/ui_module_control_page.c \
 	src/ui_device_io_page.c \
+	src/ui_command_console_page.c \
 	src/ui_kernel_log_page.c \
 	src/ui_help_page.c \
 	src/kernel_module_commands.c

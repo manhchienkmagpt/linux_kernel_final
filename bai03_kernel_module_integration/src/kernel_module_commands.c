@@ -208,7 +208,7 @@ char *read_device_data(gboolean *ok) {
         if (ok) *ok = FALSE;
         return g_strdup_printf("open %s failed: %s", DEVICE_PATH, strerror(errno));
     }
-    char buffer[1025] = {0};
+    char buffer[8193] = {0};
     ssize_t n = read(fd, buffer, sizeof(buffer) - 1);
     close(fd);
     if (n < 0) {
@@ -218,6 +218,22 @@ char *read_device_data(gboolean *ok) {
     buffer[n] = '\0';
     if (ok) *ok = TRUE;
     return g_strdup(buffer);
+}
+
+char *write_device_data(const char *text, gboolean *ok) {
+    int fd = open(DEVICE_PATH, O_WRONLY);
+    if (fd < 0) {
+        if (ok) *ok = FALSE;
+        return g_strdup_printf("open %s failed: %s", DEVICE_PATH, strerror(errno));
+    }
+    ssize_t n = write(fd, text ? text : "", strlen(text ? text : ""));
+    close(fd);
+    if (n < 0) {
+        if (ok) *ok = FALSE;
+        return g_strdup_printf("write failed: %s", strerror(errno));
+    }
+    if (ok) *ok = TRUE;
+    return g_strdup_printf("Wrote command to %s", DEVICE_PATH);
 }
 
 static gboolean message_is_permission_denied(const char *message) {
@@ -269,6 +285,46 @@ char *read_device_data_sudo(GtkWindow *parent, gboolean *ok) {
     return data;
 }
 
+char *write_device_data_sudo(GtkWindow *parent, const char *text, gboolean *ok) {
+    gboolean normal_ok = FALSE;
+    char *normal = write_device_data(text, &normal_ok);
+    if (normal_ok || !message_is_permission_denied(normal)) {
+        if (ok) *ok = normal_ok;
+        return normal;
+    }
+    g_free(normal);
+
+    gboolean cancelled = FALSE;
+    char *password = sudo_password_for_device(parent, &cancelled);
+    if (cancelled) {
+        if (ok) *ok = FALSE;
+        return g_strdup("Sudo password prompt was cancelled.");
+    }
+
+    char *quoted_text = g_shell_quote(text ? text : "");
+    char *command = g_strdup_printf("printf %%s %s > %s", quoted_text, DEVICE_PATH);
+    gboolean command_ok = FALSE;
+    char *raw = run_command_sync_internal(command, TRUE, password, &command_ok);
+    char *message = command_ok ? g_strdup_printf("Command sent: %s", text ? text : "") : g_strdup(raw);
+    if (ok) *ok = command_ok;
+    g_free(raw);
+    g_free(command);
+    g_free(quoted_text);
+    g_free(password);
+    return message;
+}
+
+char *send_kfile_command(GtkWindow *parent, const char *command, gboolean *ok) {
+    gboolean write_ok = FALSE;
+    char *write_message = write_device_data_sudo(parent, command, &write_ok);
+    if (!write_ok) {
+        if (ok) *ok = FALSE;
+        return write_message;
+    }
+    g_free(write_message);
+    return read_device_data_sudo(parent, ok);
+}
+
 static int parse_status_value(const char *raw, const char *key) {
     char *pattern = g_strdup_printf("%s=", key);
     char *start = g_strstr_len(raw ? raw : "", -1, pattern);
@@ -278,44 +334,55 @@ static int parse_status_value(const char *raw, const char *key) {
     return value;
 }
 
-MouseStatus *read_mouse_status(GtkWindow *parent, gboolean *ok, char **message) {
-    gboolean read_ok = FALSE;
-    char *raw = read_device_data_sudo(parent, &read_ok);
-    if (!read_ok) {
+static char *parse_status_string(const char *raw, const char *key) {
+    char *pattern = g_strdup_printf("%s=", key);
+    char *start = g_strstr_len(raw ? raw : "", -1, pattern);
+    char *value = NULL;
+    if (start) {
+        start += strlen(pattern);
+        char *end = strchr(start, '\n');
+        value = end ? g_strndup(start, end - start) : g_strdup(start);
+    }
+    g_free(pattern);
+    return value ? value : g_strdup("-");
+}
+
+KFileStatus *read_kfile_status(GtkWindow *parent, gboolean *ok) {
+    gboolean send_ok = FALSE;
+    char *raw = send_kfile_command(parent, "STATUS", &send_ok);
+    if (!send_ok) {
         if (ok) *ok = FALSE;
-        if (message) *message = g_strdup(raw);
         g_free(raw);
         return NULL;
     }
 
-    MouseStatus *status = g_new0(MouseStatus, 1);
+    KFileStatus *status = g_new0(KFileStatus, 1);
     status->raw = raw;
-    status->connected = parse_status_value(raw, "connected");
-    status->left = parse_status_value(raw, "left");
-    status->right = parse_status_value(raw, "right");
-    status->middle = parse_status_value(raw, "middle");
-    status->dx = parse_status_value(raw, "dx");
-    status->dy = parse_status_value(raw, "dy");
-    status->wheel = parse_status_value(raw, "wheel");
+    status->root = parse_status_string(raw, "root");
+    status->last_command = parse_status_string(raw, "last_command");
+    status->last_result = parse_status_string(raw, "last_result");
+    status->total_commands = parse_status_value(raw, "total_commands");
     if (ok) *ok = TRUE;
-    if (message) *message = g_strdup("Mouse status refreshed.");
     return status;
 }
 
-void mouse_status_free(MouseStatus *status) {
+void kfile_status_free(KFileStatus *status) {
     if (!status) return;
+    g_free(status->root);
+    g_free(status->last_command);
+    g_free(status->last_result);
     g_free(status->raw);
     g_free(status);
 }
 
-char *last_mouse_event(void) {
+char *last_kfile_event(void) {
     gboolean ok = FALSE;
-    char *raw = run_command_sync("dmesg | grep mouse_monitor | tail -20", &ok);
+    char *raw = run_command_sync("dmesg | grep kfile_manager | tail -20", &ok);
     char **lines = g_strsplit(raw ? raw : "", "\n", -1);
     char *last = g_strdup("No events yet");
 
     for (int i = 0; lines[i]; i++) {
-        if (!g_strstr_len(lines[i], -1, "mouse_monitor")) continue;
+        if (!g_strstr_len(lines[i], -1, "kfile_manager")) continue;
         g_free(last);
         last = g_strdup(lines[i]);
     }

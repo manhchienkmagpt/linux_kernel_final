@@ -4,9 +4,11 @@
 typedef struct {
     AppContext *ctx;
     GtkWidget *module_status;
-    GtkWidget *mouse_connected;
-    GtkWidget *last_action;
-    GtkWidget *device_interface;
+    GtkWidget *device_file;
+    GtkWidget *root_dir;
+    GtkWidget *last_command;
+    GtkWidget *last_result;
+    GtkWidget *total_commands;
 } DashboardPage;
 
 static GtkWidget *card(const char *title, GtkWidget **value) {
@@ -31,25 +33,34 @@ static GtkWidget *card(const char *title, GtkWidget **value) {
     return frame;
 }
 
-static void refresh_dashboard(DashboardPage *page, const char *last_action) {
+static void refresh_dashboard(DashboardPage *page) {
+    gboolean loaded = module_is_loaded();
     gboolean ok = FALSE;
-    char *message = NULL;
-    MouseStatus *status = module_is_loaded() ? read_mouse_status(GTK_WINDOW(page->ctx->window), &ok, &message) : NULL;
-    char *event = last_mouse_event();
+    KFileStatus *status = loaded ? read_kfile_status(GTK_WINDOW(page->ctx->window), &ok) : NULL;
 
-    gtk_label_set_text(GTK_LABEL(page->module_status), module_is_loaded() ? "Loaded" : "Not Loaded");
-    gtk_label_set_text(GTK_LABEL(page->mouse_connected), (ok && status && status->connected) ? "Connected" : "Not Connected");
-    gtk_label_set_text(GTK_LABEL(page->last_action), event);
-    gtk_label_set_text(GTK_LABEL(page->device_interface), DEVICE_PATH);
-    (void)last_action;
-    mouse_status_free(status);
-    g_free(message);
-    g_free(event);
+    gtk_label_set_text(GTK_LABEL(page->module_status), loaded ? "Loaded" : "Not Loaded");
+    gtk_label_set_text(GTK_LABEL(page->device_file), DEVICE_PATH);
+
+    if (ok && status) {
+        char total[32];
+        g_snprintf(total, sizeof(total), "%d", status->total_commands);
+        gtk_label_set_text(GTK_LABEL(page->root_dir), status->root);
+        gtk_label_set_text(GTK_LABEL(page->last_command), status->last_command);
+        gtk_label_set_text(GTK_LABEL(page->last_result), status->last_result);
+        gtk_label_set_text(GTK_LABEL(page->total_commands), total);
+    } else {
+        gtk_label_set_text(GTK_LABEL(page->root_dir), "/tmp/kfile_manager_root");
+        gtk_label_set_text(GTK_LABEL(page->last_command), "-");
+        gtk_label_set_text(GTK_LABEL(page->last_result), loaded ? "Cannot read status" : "-");
+        gtk_label_set_text(GTK_LABEL(page->total_commands), "0");
+    }
+
+    kfile_status_free(status);
 }
 
 static void on_refresh(GtkButton *button, gpointer user_data) {
     (void)button;
-    refresh_dashboard(user_data, "Dashboard refreshed");
+    refresh_dashboard(user_data);
 }
 
 GtkWidget *ui_dashboard_page_new(AppContext *ctx) {
@@ -71,15 +82,17 @@ GtkWidget *ui_dashboard_page_new(AppContext *ctx) {
     gtk_grid_set_column_spacing(GTK_GRID(grid), 12);
     gtk_grid_set_row_spacing(GTK_GRID(grid), 12);
     gtk_grid_attach(GTK_GRID(grid), card("Module Status", &page->module_status), 0, 0, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid), card("Mouse Connected", &page->mouse_connected), 1, 0, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid), card("Device Interface", &page->device_interface), 2, 0, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid), card("Last Event", &page->last_action), 0, 1, 3, 1);
+    gtk_grid_attach(GTK_GRID(grid), card("Device File", &page->device_file), 1, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), card("Root Directory", &page->root_dir), 2, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), card("Last Command", &page->last_command), 0, 1, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), card("Last Result", &page->last_result), 1, 1, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), card("Total Commands", &page->total_commands), 2, 1, 1, 1);
     gtk_box_append(GTK_BOX(root), grid);
 
     GtkWidget *refresh = gtk_button_new_with_label("Refresh");
     gtk_widget_set_halign(refresh, GTK_ALIGN_START);
     gtk_box_append(GTK_BOX(root), refresh);
     g_signal_connect(refresh, "clicked", G_CALLBACK(on_refresh), page);
-    refresh_dashboard(page, "Application started");
+    refresh_dashboard(page);
     return root;
 }

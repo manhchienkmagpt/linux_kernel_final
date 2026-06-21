@@ -3,22 +3,19 @@
 
 #include <gtk/gtk.h>
 
-#define MODULE_NAME "mouse_monitor"
-#define DEVICE_PATH "/proc/mouse_monitor"
-#define MODULE_KO_PATH "src/mouse_monitor.ko"
+#define MODULE_NAME "kfile_manager"
+#define DEVICE_PATH "/dev/kfile_manager"
+#define MODULE_KO_PATH "src/kfile_manager.ko"
 
 typedef void (*CommandDoneCallback)(gboolean ok, const char *output, gpointer user_data);
 
 typedef struct {
-    int connected;
-    int left;
-    int right;
-    int middle;
-    int dx;
-    int dy;
-    int wheel;
+    char *root;
+    char *last_command;
+    char *last_result;
+    int total_commands;
     char *raw;
-} MouseStatus;
+} KFileStatus;
 
 gboolean module_is_loaded(void);
 gboolean device_exists(void);
@@ -28,9 +25,12 @@ void run_command_async(const char *command, CommandDoneCallback callback, gpoint
 void run_command_async_sudo(GtkWindow *parent, const char *command, CommandDoneCallback callback, gpointer user_data);
 char *read_device_data(gboolean *ok);
 char *read_device_data_sudo(GtkWindow *parent, gboolean *ok);
-MouseStatus *read_mouse_status(GtkWindow *parent, gboolean *ok, char **message);
-void mouse_status_free(MouseStatus *status);
-char *last_mouse_event(void);
+char *write_device_data(const char *text, gboolean *ok);
+char *write_device_data_sudo(GtkWindow *parent, const char *text, gboolean *ok);
+char *send_kfile_command(GtkWindow *parent, const char *command, gboolean *ok);
+KFileStatus *read_kfile_status(GtkWindow *parent, gboolean *ok);
+void kfile_status_free(KFileStatus *status);
+char *last_kfile_event(void);
 char *read_kernel_log(gboolean module_only, const char *filter, int *line_count);
 char *read_kernel_log_sudo(GtkWindow *parent, gboolean module_only, const char *filter, int *line_count);
 

@@ -2,10 +2,10 @@
 set -u
 
 cmd="${1:-}"
-module_name="mouse_monitor"
+module_name="kfile_manager"
 script_path="$(readlink -f "$0")"
 project_dir="$(cd "$(dirname "$script_path")/.." && pwd)"
-ko_path="$project_dir/src/mouse_monitor.ko"
+ko_path="$project_dir/src/kfile_manager.ko"
 
 need_root() {
   if [[ "$(id -u)" -ne 0 ]]; then
@@ -39,7 +39,7 @@ case "$cmd" in
   status)
     if lsmod | grep -q "^${module_name}"; then
       lsmod | grep "^${module_name}"
-      [[ -e /proc/mouse_monitor ]] && ls -l /proc/mouse_monitor
+      [[ -e /dev/kfile_manager ]] && ls -l /dev/kfile_manager
     else
       echo "$module_name is not loaded."
     fi

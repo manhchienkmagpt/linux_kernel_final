@@ -1,76 +1,67 @@
-# Giai thich code - Bai 03
+# Code Explanation - Bai 03
 
-## Tong quan
+## module_init / module_exit
 
-Bai 03 la **Ubuntu Mouse Monitor**. Kernel module `mouse_monitor` theo doi su kien chuot hien co tren Ubuntu thong qua Linux input subsystem va GUI GTK hien trang thai chuot.
+`kfile_manager_init` khoi tao root mac dinh `/tmp/kfile_manager_root`, dang ky character device, tao class/device `/dev/kfile_manager`, va printk `kfile_manager loaded`.
 
-## Vi sao dung input_handler
+`kfile_manager_exit` huy device/class/cdev/dev_t va printk `kfile_manager unloaded`.
 
-Input subsystem cho phep module dang ky mot handler de nghe event tu device chuot/touchpad da ton tai, vi vay:
+## struct file_operations
 
-- Khong can hook syscall.
-- Co the nghe chuot thuong, touchpad hoac thiet bi input tuong thich.
-- Cleanup ro rang bang API kernel chuan.
+Module cung cap:
 
-## `src/mouse_monitor.c`
+- `.open`
+- `.read`
+- `.write`
+- `.release`
 
-### Match input device
+User-space ghi command vao device. Kernel xu ly command va luu output vao result buffer. User-space doc device de lay output.
 
-Module match device co:
+## copy_from_user / copy_to_user
 
-- `EV_REL + REL_X + REL_Y` voi chuot tuong doi.
-- Hoac `EV_ABS + ABS_X + ABS_Y` voi touchpad.
-- Hoac `EV_ABS + ABS_MT_POSITION_X + ABS_MT_POSITION_Y` voi multi-touch touchpad.
+`write()` dung `copy_from_user` de copy command tu user-space vao kernel buffer.
 
-Day la dau hieu cua mot thiet bi co hanh vi giong chuot/touchpad.
+`read()` dung `simple_read_from_buffer`, ben trong thuc hien copy result ve user-space an toan.
 
-### Connect
+## filp_open / kernel_read / kernel_write
 
-`mouse_connect`:
+- Tao file: `filp_open(path, O_CREAT | O_EXCL | O_WRONLY, 0644)`.
+- Ghi file: `kernel_write`.
+- Doc file: `kernel_read`.
+- Dong file: `filp_close`.
 
-- Cap phat `input_handle`.
-- Gan `handle->dev`, `handle->handler`, `handle->name`.
-- Goi `input_register_handle`.
-- Goi `input_open_device`.
-- Cap nhat `connected=1`.
+## validate_filename / build_safe_path
 
-### Event
+`validate_filename` chan:
 
-`mouse_event` nhan event tu input subsystem:
+- filename rong
+- filename bat dau bang `/`
+- filename chua `..`
+- ky tu ngoai `[a-zA-Z0-9._-]`
 
-- `EV_KEY + BTN_LEFT`: nut trai.
-- `EV_KEY + BTN_RIGHT`: nut phai.
-- `EV_KEY + BTN_MIDDLE`: nut giua.
-- `EV_REL + REL_X`: dich chuyen ngang `dx`.
-- `EV_REL + REL_Y`: dich chuyen doc `dy`.
-- `EV_REL + REL_WHEEL`: cuon chuot.
-- `EV_ABS + ABS_X/ABS_Y`: touchpad gui toa do tuyet doi, module lay chenh lech voi gia tri truoc de tinh `dx/dy`.
-- `EV_SYN + SYN_REPORT`: ket thuc mot frame event, module ghi log neu co thay doi.
+`build_safe_path` ghep root directory hien tai voi filename da validate.
 
-### Proc interface
+## mutex
 
-Module tao:
+`state_lock` bao ve:
 
-```text
-/proc/mouse_monitor
+- `root_dir`
+- `result_buffer`
+- `last_command`
+- `last_result`
+- `total_commands`
+
+## User-space command flow
+
+Vi du:
+
+```bash
+echo "WRITE test.txt hello" | sudo tee /dev/kfile_manager
+cat /dev/kfile_manager
 ```
 
-`proc_status_read` tra ve status hien tai theo dang key=value.
+Kernel parser nhan `WRITE`, tao safe path trong root, mo file bang VFS API, ghi noi dung, luu result va printk log.
 
-## GUI backend
+## GUI flow
 
-`kernel_module_commands.c`:
-
-- `module_is_loaded`: doc `/proc/modules`.
-- `device_exists`: kiem tra `/proc/mouse_monitor`.
-- `read_mouse_status`: doc proc status va parse connected/left/right/middle/dx/dy/wheel.
-- `last_mouse_event`: doc `dmesg | grep mouse_monitor`.
-- `run_command_async_sudo`: load/unload module co dialog sudo.
-
-## GUI pages
-
-- Dashboard: module status, mouse connected, last event, device interface.
-- Module Control: build/load/unload/status/clean.
-- Mouse Status: refresh status va hien raw proc output.
-- Event Log: refresh/filter dmesg.
-- Help: huong dan demo, giai thich dx/dy.
+GTK backend trong `kernel_module_commands.c` gui command vao `/dev/kfile_manager`. Neu permission denied, GUI hien dialog nhap sudo password va chay command bang sudo.

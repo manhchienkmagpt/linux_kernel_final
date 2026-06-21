@@ -5,6 +5,7 @@
 #include "ui_help_page.h"
 #include "ui_kernel_log_page.h"
 #include "ui_module_control_page.h"
+#include "ui_command_console_page.h"
 
 static void on_destroy(GtkWidget *widget, gpointer user_data) {
     (void)widget;
@@ -13,11 +14,11 @@ static void on_destroy(GtkWidget *widget, gpointer user_data) {
 
 GtkWidget *ui_main_window_new(GtkApplication *app) {
     GtkWidget *window = gtk_application_window_new(app);
-    gtk_window_set_title(GTK_WINDOW(window), "Ubuntu Mouse Monitor");
+    gtk_window_set_title(GTK_WINDOW(window), "Linux Kernel File Manager");
     gtk_window_set_default_size(GTK_WINDOW(window), 1100, 700);
 
     GtkWidget *header = gtk_header_bar_new();
-    GtkWidget *title = gtk_label_new("Ubuntu Mouse Monitor");
+    GtkWidget *title = gtk_label_new("Linux Kernel File Manager");
     gtk_widget_add_css_class(title, "title-3");
     gtk_header_bar_set_title_widget(GTK_HEADER_BAR(header), title);
     gtk_window_set_titlebar(GTK_WINDOW(window), header);
@@ -42,8 +43,9 @@ GtkWidget *ui_main_window_new(GtkApplication *app) {
 
     gtk_stack_add_titled(GTK_STACK(stack), ui_dashboard_page_new(ctx), "dashboard", "Dashboard");
     gtk_stack_add_titled(GTK_STACK(stack), ui_module_control_page_new(ctx), "module", "Module Control");
-    gtk_stack_add_titled(GTK_STACK(stack), ui_device_io_page_new(ctx), "mouse", "Mouse Status");
-    gtk_stack_add_titled(GTK_STACK(stack), ui_kernel_log_page_new(ctx), "logs", "Event Log");
+    gtk_stack_add_titled(GTK_STACK(stack), ui_device_io_page_new(ctx), "files", "File Manager");
+    gtk_stack_add_titled(GTK_STACK(stack), ui_command_console_page_new(ctx), "console", "Command Console");
+    gtk_stack_add_titled(GTK_STACK(stack), ui_kernel_log_page_new(ctx), "logs", "Kernel Log");
     gtk_stack_add_titled(GTK_STACK(stack), ui_help_page_new(ctx), "help", "Help");
     gtk_stack_set_visible_child_name(GTK_STACK(stack), "dashboard");
     return window;

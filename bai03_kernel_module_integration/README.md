@@ -1,117 +1,91 @@
-# Bai 03 - Ubuntu Mouse Monitor
+# Bai 03 - Linux Kernel File Manager
 
 ## Muc tieu
 
-Project nay xay dung Linux Kernel Module `mouse_monitor` va ung dung GTK4 de giam sat chuot hien co tren Ubuntu.
+Project xay dung Linux Kernel Module `kfile_manager`, cung cap character device `/dev/kfile_manager` de user-space gui lenh quan ly file xuong kernel-space.
 
-Module dang ky `input_handler` voi Linux input subsystem de nghe su kien tu chuot/touchpad dang duoc Ubuntu quan ly.
+Module khong phai demo read/write chuoi don gian. No co command parser va thuc hien thao tac file that bang VFS/kernel file API nhu `filp_open`, `kernel_read`, `kernel_write`, `vfs_unlink`, `iterate_dir`.
 
-Khi user click, di chuyen hoac cuon chuot, module ghi log kernel:
-
-```text
-[mouse_monitor] left=1 right=0 middle=0 dx=5 dy=-2 wheel=0
-```
-
-Module cung tao interface user-space:
+## Cau truc
 
 ```text
-/proc/mouse_monitor
+src/kfile_manager.c              kernel module
+src/kernel_module_commands.c/.h  backend GTK gui command/read result
+src/ui_dashboard_page.c          Dashboard
+src/ui_module_control_page.c     Build/load/unload module
+src/ui_device_io_page.c          File Manager
+src/ui_command_console_page.c    Command Console
+src/ui_kernel_log_page.c         Kernel Log
+src/ui_help_page.c               Help
 ```
-
-Doc status:
-
-```bash
-cat /proc/mouse_monitor
-```
-
-Output:
-
-```text
-connected=1
-devices=1
-left=0
-right=0
-middle=0
-dx=0
-dy=0
-wheel=0
-```
-
-## Cach module doc chuot
-
-- Khong chiem quyen dieu khien chuot khoi driver goc.
-- Doc su kien chuot/touchpad hien co neu device xuat `REL_X/REL_Y`, `ABS_X/ABS_Y` hoac `ABS_MT_POSITION_X/Y`.
-- Van khong hook syscall va khong can thiep syscall table.
-
-## Giao dien
-
-- Dashboard: Module Status, Mouse Connected, Last Event, Device Interface.
-- Module Control: Build, Load, Unload, Check Status, Clean Build.
-- Mouse Status: doc `/proc/mouse_monitor` va hien nut/dx/dy/wheel.
-- Event Log: refresh dmesg, filter `mouse_monitor`, clear.
-- Help: huong dan demo va giai thich dx/dy.
 
 ## Build
 
 ```bash
-sudo apt update
 sudo apt install build-essential pkg-config libgtk-4-dev linux-headers-$(uname -r) kmod
 make
-```
-
-File module:
-
-```text
-src/mouse_monitor.ko
 ```
 
 ## Load / Unload
 
 ```bash
-sudo insmod src/mouse_monitor.ko
-lsmod | grep mouse_monitor
-cat /proc/mouse_monitor
-dmesg | grep mouse_monitor
-sudo rmmod mouse_monitor
+sudo insmod src/kfile_manager.ko
+lsmod | grep kfile_manager
+ls -l /dev/kfile_manager
+sudo rmmod kfile_manager
 ```
 
-Hoac dung GUI:
+## Test terminal
+
+```bash
+sudo mkdir -p /tmp/kfile_manager_root
+echo "SET_ROOT /tmp/kfile_manager_root" | sudo tee /dev/kfile_manager
+echo "CREATE test.txt" | sudo tee /dev/kfile_manager
+echo "WRITE test.txt hello world" | sudo tee /dev/kfile_manager
+echo "READ test.txt" | sudo tee /dev/kfile_manager
+cat /dev/kfile_manager
+echo "INFO test.txt" | sudo tee /dev/kfile_manager
+cat /dev/kfile_manager
+echo "LIST" | sudo tee /dev/kfile_manager
+cat /dev/kfile_manager
+dmesg | grep kfile_manager
+```
+
+## Commands
+
+- `SET_ROOT path`
+- `CREATE filename`
+- `WRITE filename content`
+- `APPEND filename content`
+- `READ filename`
+- `DELETE filename`
+- `RENAME oldname newname`
+- `COPY src dst`
+- `INFO filename`
+- `LIST`
+- `STATUS`
+- `HELP`
+
+## GUI
 
 ```bash
 make run
 ```
 
-## Demo bang GUI
+Pages:
 
-1. Vao Module Control.
-2. Bam Build Module.
-3. Bam Load Module.
-4. Di chuyen/click/cuon chuot dang dung tren Ubuntu.
-5. Vao Mouse Status, bam Refresh Status.
-6. Vao Event Log, bam Filter mouse_monitor.
+- Dashboard: module status, device file, root directory, last command/result, total commands.
+- Module Control: build/load/unload/status/clean.
+- File Manager: form thao tac file.
+- Command Console: gui command thu cong va doc result.
+- Kernel Log: refresh/filter `kfile_manager`.
+- Help: huong dan demo.
 
-## Neu `/proc/mouse_monitor` luon connected=0
+## Bao mat path
 
-Hay rebuild va load lai module moi:
-
-```bash
-sudo rmmod mouse_monitor 2>/dev/null
-make clean
-make
-sudo insmod src/mouse_monitor.ko
-dmesg | grep mouse_monitor
-```
-
-Neu module bat duoc chuot, `dmesg` se co dong gan giong:
-
-```text
-mouse_monitor: pointer connected name="..."
-```
-
-Va `/proc/mouse_monitor` se co `devices=1` hoac lon hon.
-
-Tren VMware, ten device co the la `VirtualPS/2 VMware VMMouse`, `VMware VMware Virtual Mouse` hoac mot thiet bi input ao khac.
-
-## dx/dy la gi
-
-`dx` va `dy` la do dich chuyen tuong doi cua chuot trong report gan nhat, khong phai toa do tuyet doi tren man hinh.
+- Root directory chi duoc nam trong `/tmp` hoac `/home`.
+- Chan root nguy hiem nhu `/`, `/etc`, `/bin`, `/usr`, `/boot`.
+- Filename khong duoc bat dau bang `/`.
+- Filename khong duoc chua `..`.
+- Filename chi duoc dung chu cai, so, `.`, `_`, `-`.
+- Moi full path deu duoc tao bang `build_safe_path(root, filename)`.

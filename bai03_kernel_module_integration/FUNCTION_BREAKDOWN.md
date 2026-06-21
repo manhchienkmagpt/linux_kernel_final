@@ -1,99 +1,70 @@
-# Phan ra chuc nang - Bai 03
+# Function Breakdown - Bai 03
 
-## Kernel Module `mouse_monitor`
+## Character Device
 
-- File: `src/mouse_monitor.c`
-- Module name: `mouse_monitor`
-- User-space interface: `/proc/mouse_monitor`
-- Dang ky `input_handler` de nghe su kien tu chuot/touchpad hien co tren Ubuntu.
+- Module: `kfile_manager`
+- Device: `/dev/kfile_manager`
+- File: `src/kfile_manager.c`
+- Dang ky bang `alloc_chrdev_region`, `cdev_add`, `class_create`, `device_create`.
 
-## Module init / exit
+## file_operations
 
-- `mouse_monitor_init`:
-  - Tao proc entry `/proc/mouse_monitor`.
-  - Dang ky input handler bang `input_register_handler`.
-  - Log `mouse_monitor loaded`.
+- `open`: mo device.
+- `write`: nhan command tu user-space bang `copy_from_user`.
+- `read`: tra result buffer bang `simple_read_from_buffer`.
+- `release`: dong device.
 
-- `mouse_monitor_exit`:
-  - Huy input handler bang `input_unregister_handler`.
-  - Xoa proc entry.
-  - Log `mouse_monitor unloaded`.
+## Command Parser
 
-## Input connect / disconnect
+`execute_command` tach command va dispatch:
 
-- `mouse_connect`:
-  - Duoc goi khi input subsystem tim thay device match `REL_X/REL_Y`, `ABS_X/ABS_Y` hoac `ABS_MT_POSITION_X/Y`.
-  - Tao `input_handle`.
-  - Goi `input_register_handle`.
-  - Goi `input_open_device` de bat dau nhan event.
-  - Tang so device dang ket noi va cap nhat `connected=1`.
+- `SET_ROOT`
+- `CREATE`
+- `WRITE`
+- `APPEND`
+- `READ`
+- `DELETE`
+- `RENAME`
+- `COPY`
+- `INFO`
+- `LIST`
+- `STATUS`
+- `HELP`
 
-- `mouse_disconnect`:
-  - Goi `input_close_device`.
-  - Goi `input_unregister_handle`.
-  - Giai phong handle.
-  - Giam so device dang ket noi va cap nhat `connected`.
+## Safe Path Manager
 
-## Input event handler
+- `safe_root_path`: chi cho root trong `/tmp` hoac `/home`.
+- `validate_filename`: chan path traversal, absolute path va ky tu nguy hiem.
+- `build_safe_path`: ghep root hien tai voi filename hop le.
 
-- `mouse_event`:
-  - Nhan event tu input subsystem.
-  - Xu ly `EV_KEY` cho nut chuot:
-    - `BTN_LEFT`
-    - `BTN_RIGHT`
-    - `BTN_MIDDLE`
-  - Xu ly `EV_REL` cho dich chuyen:
-    - `REL_X` -> `dx`
-    - `REL_Y` -> `dy`
-    - `REL_WHEEL` -> `wheel`
-  - Xu ly `EV_ABS` cho touchpad:
-    - `ABS_X` -> tinh delta ngang
-    - `ABS_Y` -> tinh delta doc
-  - Khi nhan `SYN_REPORT`, cap nhat frame dich chuyen gan nhat va ghi log.
+## File Operations
 
-Log format:
+- `file_create`: tao file bang `filp_open`.
+- `file_write_content`: ghi/append bang `kernel_write`.
+- `file_read_content`: doc bang `kernel_read`.
+- `file_delete`: xoa bang `vfs_unlink`.
+- `file_copy`: doc source va ghi destination.
+- `RENAME`: copy file moi roi delete file cu.
+- `file_info`: lay metadata qua `kern_path` va inode.
+- `file_list`: liet ke thu muc bang `iterate_dir`.
 
-```text
-[mouse_monitor] left=1 right=0 middle=0 dx=5 dy=-2 wheel=0
-```
+## Result Buffer
 
-## Proc status
+- `result_buffer` luu output moi nhat.
+- `read()` cua device tra ve buffer nay.
+- `state_lock` bao ve root, result va counters.
 
-Doc:
+## Logging
 
-```bash
-cat /proc/mouse_monitor
-```
-
-Tra ve:
+Moi command printk:
 
 ```text
-connected=1
-devices=1
-left=0
-right=0
-middle=0
-dx=0
-dy=0
-wheel=0
+[kfile_manager] PID=... COMM=... CMD=CREATE FILE=file1.txt RESULT=OK
 ```
 
-## GUI Module Control
+## GTK Pages
 
-- Build Module: `make module`.
-- Load Module: `scripts/module_control.sh load`.
-- Unload Module: `scripts/module_control.sh unload`.
-- Check Status: `scripts/module_control.sh status`.
-- Clean Build: `make clean`.
-
-## GUI Mouse Status
-
-- Refresh Status doc `/proc/mouse_monitor`.
-- Hien Connected, Left, Right, Middle, dx, dy, Wheel.
-- TextView hien raw status.
-
-## GUI Event Log
-
-- Refresh dmesg.
-- Filter `mouse_monitor`.
-- Clear View.
+- Module Control: build/load/unload/status/clean.
+- File Manager: gui command theo form.
+- Command Console: gui command thu cong.
+- Kernel Log: doc va filter dmesg.

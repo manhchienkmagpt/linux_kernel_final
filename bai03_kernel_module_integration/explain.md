@@ -1,165 +1,117 @@
-# Explain - Bai 03: Ubuntu Mouse Monitor
+# Explain - Bai 03: Linux Kernel File Manager
 
 ## 1. Project nay lam gi
 
-Bai 03 xay dung Linux Kernel Module `mouse_monitor` va app GTK4 de giam sat chuot hien co tren Ubuntu.
-
-Module dang ky `input_handler` voi Linux input subsystem. Nho vay module co the nghe su kien tu chuot thuong, touchpad hoac thiet bi input dang duoc Ubuntu quan ly.
-
-Khi co su kien click, di chuyen hoac cuon chuot, module ghi log vao kernel:
+Bai 03 xay dung Linux Kernel Module `kfile_manager`. Module tao character device:
 
 ```text
-[mouse_monitor] left=1 right=0 middle=0 dx=5 dy=-2 wheel=0
+/dev/kfile_manager
 ```
 
-App GTK co ten **Ubuntu Mouse Monitor** dung de build/load/unload module, doc trang thai chuot tu `/proc/mouse_monitor`, va xem log kernel bang `dmesg`.
+User-space ghi command vao device, kernel parser se thuc hien thao tac file that trong kernel-space bang VFS/kernel file API.
 
-## 2. Cau truc chinh
-
-```text
-src/mouse_monitor.c               kernel module input mouse monitor
-src/kernel_module_commands.c/.h   backend GUI goi lenh, sudo, procfs, dmesg
-src/ui_dashboard_page.c           Dashboard
-src/ui_module_control_page.c      Module Control
-src/ui_device_io_page.c           Mouse Status
-src/ui_kernel_log_page.c          Event Log
-src/ui_help_page.c                Help
-scripts/module_control.sh         load/unload/status/dmesg
-```
-
-## 3. Kernel module `mouse_monitor`
-
-Module khong hook syscall table va khong can thiep vao driver chuot goc. No lam viec theo huong input subsystem:
-
-- `input_register_handler`: dang ky handler voi input subsystem.
-- `mouse_connect`: duoc goi khi co input device giong chuot match voi handler.
-- `mouse_disconnect`: cleanup khi device roi khoi handler.
-- `mouse_event`: nhan event chuot va cap nhat status.
-
-Module match device co cac kha nang:
-
-```text
-EV_REL + REL_X + REL_Y
-hoac
-EV_ABS + ABS_X + ABS_Y
-hoac
-EV_ABS + ABS_MT_POSITION_X + ABS_MT_POSITION_Y
-```
-
-Day la dau hieu co ban cua chuot/touchpad.
-
-## 4. Event chuot duoc doc nhu nao
-
-Input subsystem gui event theo dang:
-
-```text
-EV_KEY BTN_LEFT   1   -> nhan nut trai
-EV_KEY BTN_LEFT   0   -> tha nut trai
-EV_REL REL_X      5   -> dich ngang 5 don vi
-EV_REL REL_Y     -2   -> dich doc -2 don vi
-EV_REL REL_WHEEL  1   -> cuon chuot
-EV_ABS ABS_X   1200   -> toa do X touchpad
-EV_ABS ABS_Y    800   -> toa do Y touchpad
-EV_SYN SYN_REPORT 0   -> ket thuc mot frame event
-```
-
-Module luu:
-
-- `left`, `right`, `middle`: trang thai nut chuot hien tai.
-- `dx`, `dy`: do dich chuyen tuong doi gan nhat.
-- `wheel`: gia tri cuon gan nhat.
-
-`dx` va `dy` khong phai toa do tuyet doi tren man hinh. Chung chi la do dich chuyen so voi event truoc.
-
-## 5. Interface `/proc/mouse_monitor`
-
-Module tao file:
-
-```text
-/proc/mouse_monitor
-```
-
-Khi user-space doc file nay:
+Vi du:
 
 ```bash
-cat /proc/mouse_monitor
+echo "CREATE test.txt" | sudo tee /dev/kfile_manager
+echo "WRITE test.txt hello world" | sudo tee /dev/kfile_manager
+echo "READ test.txt" | sudo tee /dev/kfile_manager
+cat /dev/kfile_manager
 ```
 
-Kernel tra ve trang thai hien tai:
+## 2. Cau truc
 
 ```text
-connected=1
-devices=1
-left=0
-right=0
-middle=0
-dx=0
-dy=0
-wheel=0
+src/kfile_manager.c              kernel module
+src/kernel_module_commands.c/.h  backend GTK gui command/read result
+src/ui_dashboard_page.c          Dashboard
+src/ui_module_control_page.c     Module Control
+src/ui_device_io_page.c          File Manager
+src/ui_command_console_page.c    Command Console
+src/ui_kernel_log_page.c         Kernel Log
+src/ui_help_page.c               Help
 ```
 
-GUI Mouse Status cung doc file proc nay de hien label va raw status.
+## 3. Kernel module
 
-## 6. GUI Pages
+Module init:
 
-### Dashboard
+- Tao root mac dinh `/tmp/kfile_manager_root`.
+- Dang ky character device.
+- Tao class/device `/dev/kfile_manager`.
+- Printk `kfile_manager loaded`.
 
-Hien:
+Module exit:
 
-- Module Status
-- Mouse Connected
-- Device Interface
-- Last Event
+- Huy device/class.
+- Huy cdev/dev_t.
+- Printk `kfile_manager unloaded`.
 
-### Module Control
+## 4. Command parser
 
-Co cac nut:
+`write()` cua device nhan command tu user-space bang `copy_from_user`, sau do `execute_command` dispatch:
 
-- Build Module
-- Load Module
-- Unload Module
-- Check Status
-- Clean Build
+- `SET_ROOT path`
+- `CREATE filename`
+- `WRITE filename content`
+- `APPEND filename content`
+- `READ filename`
+- `DELETE filename`
+- `RENAME oldname newname`
+- `COPY src dst`
+- `INFO filename`
+- `LIST`
+- `STATUS`
+- `HELP`
 
-Load/unload can quyen sudo. Neu sudo can mat khau, GUI se hien dialog de user nhap mat khau.
+Ket qua moi nhat duoc luu trong `result_buffer`. Khi user chay `cat /dev/kfile_manager`, ham `read()` tra buffer nay ve user-space.
 
-### Mouse Status
+## 5. File operations
 
-Co nut Refresh Status va cac label:
+- Tao/mo file bang `filp_open`.
+- Doc file bang `kernel_read`.
+- Ghi file bang `kernel_write`.
+- Xoa file bang `vfs_unlink`.
+- List thu muc bang `iterate_dir`.
+- Lay metadata bang `kern_path` va inode.
 
-- Connected
-- Left Button
-- Right Button
-- Middle Button
-- dx
-- dy
-- Wheel
+`RENAME` duoc cai dat theo huong copy sang file moi roi delete file cu de tranh phu thuoc qua nhieu vao signature `vfs_rename` giua cac kernel version.
 
-TextView ben duoi hien output raw tu `/proc/mouse_monitor`.
+## 6. Bao mat path
 
-### Event Log
+Module chi cho root directory nam trong:
 
-Doc `dmesg`, loc log co chuoi `mouse_monitor`, va hien log kernel lien quan den ket noi chuot hoac su kien chuot.
-
-### Help
-
-Hien lenh demo:
-
-```bash
-make
-sudo insmod src/mouse_monitor.ko
-dmesg | grep mouse_monitor
-cat /proc/mouse_monitor
-sudo rmmod mouse_monitor
+```text
+/tmp
+/home
 ```
 
-## 7. Cach demo nhanh
+Filename bi chan neu:
 
-1. `make`
-2. Chay GUI bang `make run`.
-3. Vao Module Control, bam Build Module.
-4. Bam Load Module.
-5. Di chuyen/click/cuon chuot dang dung tren Ubuntu.
-6. Vao Mouse Status, bam Refresh Status.
-7. Vao Event Log, bam Filter mouse_monitor.
-8. Khi xong, bam Unload Module.
+- bat dau bang `/`
+- chua `..`
+- qua dai
+- chua ky tu ngoai `a-z A-Z 0-9 . _ -`
+
+Moi thao tac deu build full path bang `build_safe_path`, nen command khong the thao tac truc tiep ngoai root directory dang quan ly.
+
+## 7. GUI
+
+App GTK ten **Linux Kernel File Manager** gom:
+
+- Dashboard
+- Module Control
+- File Manager
+- Command Console
+- Kernel Log
+- Help
+
+File Manager cung cap form cho cac lenh hay dung. Command Console cho phep nhap command thu cong nhu:
+
+```text
+CREATE a.txt
+WRITE a.txt hello
+READ a.txt
+```
+
+Neu thao tac can sudo, GUI se hien dialog nhap mat khau.
