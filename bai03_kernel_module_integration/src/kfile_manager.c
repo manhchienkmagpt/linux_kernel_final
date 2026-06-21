@@ -124,54 +124,18 @@ static int build_safe_path(const char *filename, char *out, size_t out_len)
 
 static int ensure_root_dir(const char *path)
 {
-    struct path parent_path;
-    struct dentry *dentry;
-    char *tmp;
-    char *slash;
-    int ret = 0;
+    struct path root_path;
+    int ret;
 
-    if (kern_path(path, LOOKUP_DIRECTORY, &parent_path) == 0) {
-        path_put(&parent_path);
+    ret = kern_path(path, LOOKUP_DIRECTORY, &root_path);
+    if (!ret) {
+        path_put(&root_path);
         return 0;
     }
 
-    tmp = kstrdup(path, GFP_KERNEL);
-    if (!tmp)
-        return -ENOMEM;
-
-    slash = strrchr(tmp, '/');
-    if (!slash || slash == tmp) {
-        kfree(tmp);
-        return -EINVAL;
-    }
-
-    *slash = '\0';
-    slash++;
-
-    ret = kern_path(tmp, LOOKUP_DIRECTORY, &parent_path);
-    if (ret)
-        goto out;
-
-    dentry = lookup_one_len(slash, parent_path.dentry, strlen(slash));
-    if (IS_ERR(dentry)) {
-        ret = PTR_ERR(dentry);
-        path_put(&parent_path);
-        goto out;
-    }
-
-    inode_lock(d_inode(parent_path.dentry));
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
-    ret = vfs_mkdir(mnt_idmap(parent_path.mnt), d_inode(parent_path.dentry), dentry, 0755);
-#else
-    ret = vfs_mkdir(mnt_user_ns(parent_path.mnt), d_inode(parent_path.dentry), dentry, 0755);
-#endif
-    inode_unlock(d_inode(parent_path.dentry));
-    dput(dentry);
-    path_put(&parent_path);
-
-out:
-    kfree(tmp);
-    return ret == -EEXIST ? 0 : ret;
+    pr_warn("kfile_manager: root directory does not exist: %s\n", path);
+    pr_warn("kfile_manager: create it from user-space with: sudo mkdir -p %s\n", path);
+    return ret;
 }
 
 static int file_create(const char *filename)
@@ -261,38 +225,29 @@ out_free:
 
 static int file_delete(const char *filename)
 {
-    struct path parent_path;
-    struct dentry *dentry;
+    struct path file_path;
+    struct dentry *parent;
+    char full_path[MAX_PATH_LEN];
     int ret;
 
-    if (!validate_filename(filename))
-        return -EINVAL;
-
-    ret = kern_path(root_dir, LOOKUP_DIRECTORY, &parent_path);
+    ret = build_safe_path(filename, full_path, sizeof(full_path));
     if (ret)
         return ret;
 
-    dentry = lookup_one_len(filename, parent_path.dentry, strlen(filename));
-    if (IS_ERR(dentry)) {
-        ret = PTR_ERR(dentry);
-        path_put(&parent_path);
+    ret = kern_path(full_path, LOOKUP_FOLLOW, &file_path);
+    if (ret)
         return ret;
-    }
-    if (d_really_is_negative(dentry)) {
-        dput(dentry);
-        path_put(&parent_path);
-        return -ENOENT;
-    }
 
-    inode_lock(d_inode(parent_path.dentry));
+    parent = dget_parent(file_path.dentry);
+    inode_lock(d_inode(parent));
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
-    ret = vfs_unlink(mnt_idmap(parent_path.mnt), d_inode(parent_path.dentry), dentry, NULL);
+    ret = vfs_unlink(mnt_idmap(file_path.mnt), d_inode(parent), file_path.dentry, NULL);
 #else
-    ret = vfs_unlink(mnt_user_ns(parent_path.mnt), d_inode(parent_path.dentry), dentry, NULL);
+    ret = vfs_unlink(mnt_user_ns(file_path.mnt), d_inode(parent), file_path.dentry, NULL);
 #endif
-    inode_unlock(d_inode(parent_path.dentry));
-    dput(dentry);
-    path_put(&parent_path);
+    inode_unlock(d_inode(parent));
+    dput(parent);
+    path_put(&file_path);
     return ret;
 }
 

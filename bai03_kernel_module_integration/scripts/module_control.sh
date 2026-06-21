@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -u
+set -eu
 
 cmd="${1:-}"
 module_name="kfile_manager"
@@ -24,6 +24,12 @@ case "$cmd" in
       echo "$module_name is already loaded."
       exit 0
     fi
+    if [[ ! -f "$ko_path" ]]; then
+      echo "Module file not found: $ko_path" >&2
+      echo "Build module first: make module" >&2
+      exit 1
+    fi
+    mkdir -p /tmp/kfile_manager_root
     insmod "$ko_path"
     echo "Loaded $ko_path"
     ;;
