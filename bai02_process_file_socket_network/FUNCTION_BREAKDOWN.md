@@ -47,15 +47,14 @@
 - File: `ui_network_page.c/.h`
 - Backend: `network_manager.c/.h`
 - Layout la notebook/stack con gom 3 tab:
-  - Packet Log
+  - Network Info
   - Connection Viewer
   - Traffic Monitor
-- Packet Log:
+- Network Info:
   - Chon interface tu `/sys/class/net`.
-  - Filter ALL/TCP/UDP/ICMP.
-  - Start Capture tao raw socket `AF_PACKET`.
-  - Capture chay trong thread rieng.
-  - Neu thieu quyen hien loi can sudo/root.
+  - Hien IPv4, MAC, state.
+  - Hien Download Speed, Upload Speed, RX Total, TX Total.
+  - Cap nhat moi giay bang `g_timeout_add_seconds`.
 - Connection Viewer:
   - Refresh chay `ss -tunap` trong thread rieng.
   - Parse Protocol, Local Address, Remote Address, State, PID/Program.
@@ -78,4 +77,4 @@
 - `file_syscall.c/.h`: `open`, `read`, `write`, `close`.
 - `socket_demo.c/.h`: TCP server/client.
 - `network_info.c/.h`: liet ke interface bang `getifaddrs`.
-- `network_manager.c/.h`: raw packet capture, parse `ss`, doc traffic statistics.
+- `network_manager.c/.h`: parse `ss`, doc traffic statistics, liet ke interface.

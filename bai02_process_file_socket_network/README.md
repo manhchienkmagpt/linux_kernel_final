@@ -25,7 +25,7 @@ Ung dung GTK4 kieu System Monitor de demo quan ly tien trinh, thao tac file bang
 - Processes: bang PID, Name, CPU %, RAM %, State; search; refresh; kill process co dialog xac nhan; tao child process co dialog nhap so luong.
 - Files: chon folder, refresh, bang file Name/Type/Size/Permission/Modified Time; Open, Read, Write, Delete. Read/Write mo dialog rieng, Delete co xac nhan.
 - Socket: mini chat app co Server/Client mode, IP, Port, Start, Stop, Connection Log, Message va Send.
-- Network: gom 3 tab Packet Log, Connection Viewer va Traffic Monitor.
+- Network: gom 3 tab Network Info, Connection Viewer va Traffic Monitor.
 - Log: TextView log toan chuong trinh, Clear Log, Save Log.
 
 ## Cau truc source
@@ -85,5 +85,5 @@ Hoac:
 3. Bam Create Child Process, nhap so luong, chon task ghi date/heartbeat vao file hoac idle; child se chay den khi ban kill tren UI.
 4. Vao Files, chon folder, doc/ghi file bang dialog.
 5. Vao Socket, mo mot app lam Server va bam Start port 9090; mo app khac lam Client, nhap IP/port roi bam Start de ket noi, sau do gui message. Log chat hien `Client: ...` va `Server: ...`.
-6. Vao Network, thu Packet Log, Connection Viewer va Traffic Monitor.
+6. Vao Network, thu Network Info realtime, Connection Viewer va Traffic Monitor.
 7. Vao Log de Clear hoac Save log.

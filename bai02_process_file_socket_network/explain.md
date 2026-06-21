@@ -392,36 +392,40 @@ GTK khong nen duoc cap nhat truc tiep tu thread phu. Vi vay UI socket dua log tu
 
 Trang Network duoc nang cap thanh 3 tab:
 
-- Packet Log
+- Network Info
 - Connection Viewer
 - Traffic Monitor
 
 Backend moi nam trong `network_manager.c/.h`. File `network_info.c` van duoc giu cho cac thong tin network tong quan cu.
 
-### Packet Log
+### Network Info
 
-Packet Log co:
+Network Info thay cho Packet Log cu. Tab nay khong bat tung packet nua, ma hien thong tin interface va toc do mang theo thoi gian thuc:
 
 - ComboBox chon interface tu `/sys/class/net`.
-- ComboBox filter `ALL`, `TCP`, `UDP`, `ICMP`.
-- Nut Start Capture.
-- Nut Stop Capture.
-- Nut Clear.
-- Bang gom Time, Protocol, Source IP, Destination IP, Length.
+- IPv4.
+- MAC.
+- State.
+- Download Speed.
+- Upload Speed.
+- RX Total.
+- TX Total.
 
-Backend uu tien raw socket:
-
-```c
-socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL))
-```
-
-Neu user khong co quyen root/sudo, raw socket se fail voi `EPERM` hoac `EACCES`, UI ghi loi:
+IPv4 lay bang `getifaddrs`. MAC va state doc tu:
 
 ```text
-Packet capture requires sudo/root permission
+/sys/class/net/<interface>/address
+/sys/class/net/<interface>/operstate
 ```
 
-Capture chay trong thread rieng bang `g_thread_new`, nen GTK UI khong bi treo. Moi packet duoc parse Ethernet/IP de lay protocol, source IP, destination IP va length. Thread capture khong cap nhat GTK truc tiep; no dua packet ve main loop bang `g_idle_add`.
+Toc do va tong dung luong doc tu:
+
+```text
+/sys/class/net/<interface>/statistics/rx_bytes
+/sys/class/net/<interface>/statistics/tx_bytes
+```
+
+Khi bam Start Realtime, UI dung `g_timeout_add_seconds(1, ...)` de cap nhat moi giay. Neu nguoi dung dang mo browser, download/upload speed se tang theo traffic cua interface dang chon.
 
 ### Connection Viewer
 
@@ -511,5 +515,5 @@ Hoac:
 - Process demo dung `ps`, `kill`, `fork`, child process chay nen va dung `SIGTERM` de ket thuc.
 - File demo dung syscall cap thap `open/read/write/close`.
 - Socket demo dung TCP server/client va thread.
-- Network demo co Packet Log bang raw socket, Connection Viewer bang `ss -tunap`, Traffic Monitor bang `/sys/class/net`.
+- Network demo co Network Info realtime, Connection Viewer bang `ss -tunap`, Traffic Monitor bang `/sys/class/net`.
 - Khi thread phu muon cap nhat UI GTK, nen dua viec cap nhat ve main loop bang `g_idle_add`.

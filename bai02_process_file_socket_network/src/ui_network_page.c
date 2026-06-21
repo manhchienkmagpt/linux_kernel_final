@@ -1,14 +1,25 @@
 #include "ui_network_page.h"
 #include "network_manager.h"
+#include <ifaddrs.h>
+#include <netdb.h>
+#include <netinet/in.h>
 #include <string.h>
 
 typedef struct {
     AppContext *ctx;
 
-    GtkWidget *packet_iface_combo;
-    GtkWidget *packet_filter_combo;
-    GtkWidget *packet_list;
-    PacketCapture *capture;
+    GtkWidget *info_iface_combo;
+    GtkWidget *info_ipv4_label;
+    GtkWidget *info_mac_label;
+    GtkWidget *info_state_label;
+    GtkWidget *info_download_label;
+    GtkWidget *info_upload_label;
+    GtkWidget *info_rx_total_label;
+    GtkWidget *info_tx_total_label;
+    guint info_timer_id;
+    gboolean info_has_prev;
+    TrafficStats info_prev;
+    gint64 info_prev_time;
 
     GtkWidget *conn_filter_combo;
     GtkWidget *conn_search_entry;
@@ -27,11 +38,6 @@ typedef struct {
 
 typedef struct {
     NetworkPage *page;
-    PacketInfo packet;
-} PacketIdleEvent;
-
-typedef struct {
-    NetworkPage *page;
     char *protocol;
     char *search;
 } ConnectionRefreshTask;
@@ -41,6 +47,8 @@ typedef struct {
     GPtrArray *items;
     char *error;
 } ConnectionRefreshResult;
+
+static GtkWidget *metric_row(const char *label, GtkWidget **value);
 
 static GtkWidget *cell_label(const char *text, int width) {
     GtkWidget *label = gtk_label_new(text ? text : "");
@@ -80,130 +88,176 @@ static void combo_reload_interfaces(GtkWidget *combo) {
 }
 
 static void populate_interfaces(NetworkPage *page) {
-    combo_reload_interfaces(page->packet_iface_combo);
+    combo_reload_interfaces(page->info_iface_combo);
     combo_reload_interfaces(page->traffic_iface_combo);
 }
 
-static void add_packet_row(NetworkPage *page, const PacketInfo *packet) {
-    GtkWidget *row = gtk_list_box_row_new();
-    GtkWidget *box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-    gtk_widget_set_margin_top(box, 4);
-    gtk_widget_set_margin_bottom(box, 4);
-    gtk_widget_set_margin_start(box, 6);
-    gtk_widget_set_margin_end(box, 6);
-    gtk_list_box_row_set_child(GTK_LIST_BOX_ROW(row), box);
-
-    char length_text[32];
-    g_snprintf(length_text, sizeof(length_text), "%u", packet->length);
-    gtk_box_append(GTK_BOX(box), cell_label(packet->time_text, 90));
-    gtk_box_append(GTK_BOX(box), cell_label(packet->protocol, 80));
-    gtk_box_append(GTK_BOX(box), cell_label(packet->source_ip, 180));
-    gtk_box_append(GTK_BOX(box), cell_label(packet->dest_ip, 180));
-    gtk_box_append(GTK_BOX(box), cell_label(length_text, 80));
-    gtk_list_box_append(GTK_LIST_BOX(page->packet_list), row);
-
-    char *log = g_strdup_printf("Packet %s %s -> %s length=%u",
-        packet->protocol, packet->source_ip, packet->dest_ip, packet->length);
-    log_page_append(page->ctx->log_page, "INFO", log);
-    g_free(log);
+static char *read_trimmed_file(const char *path) {
+    char *content = NULL;
+    if (!g_file_get_contents(path, &content, NULL, NULL)) return g_strdup("N/A");
+    g_strstrip(content);
+    return content;
 }
 
-static gboolean packet_idle_add(gpointer user_data) {
-    PacketIdleEvent *event = user_data;
-    add_packet_row(event->page, &event->packet);
-    g_free(event);
-    return FALSE;
-}
+static char *ipv4_for_interface(const char *iface_name) {
+    struct ifaddrs *ifaddr = NULL;
+    if (getifaddrs(&ifaddr) == -1) return g_strdup("N/A");
 
-static void packet_capture_callback(const PacketInfo *packet, gpointer user_data) {
-    PacketIdleEvent *event = g_new0(PacketIdleEvent, 1);
-    event->page = user_data;
-    event->packet = *packet;
-    g_idle_add(packet_idle_add, event);
-}
-
-static void on_packet_start(GtkButton *button, gpointer user_data) {
-    (void)button;
-    NetworkPage *page = user_data;
-    if (page->capture) {
-        log_page_append(page->ctx->log_page, "INFO", "Packet capture is already running.");
-        return;
+    char *result = g_strdup("N/A");
+    for (struct ifaddrs *ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if (!ifa->ifa_addr || g_strcmp0(ifa->ifa_name, iface_name) != 0) continue;
+        if (ifa->ifa_addr->sa_family == AF_INET) {
+            char host[NI_MAXHOST];
+            if (getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in),
+                            host, sizeof(host), NULL, 0, NI_NUMERICHOST) == 0) {
+                g_free(result);
+                result = g_strdup(host);
+                break;
+            }
+        }
     }
+    freeifaddrs(ifaddr);
+    return result;
+}
 
-    char *iface = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(page->packet_iface_combo));
-    char *filter_text = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(page->packet_filter_combo));
+static void update_info_static_labels(NetworkPage *page, const char *iface) {
+    if (!iface || !*iface) return;
+
+    char *mac_path = g_strdup_printf("/sys/class/net/%s/address", iface);
+    char *state_path = g_strdup_printf("/sys/class/net/%s/operstate", iface);
+    char *ipv4 = ipv4_for_interface(iface);
+    char *mac = read_trimmed_file(mac_path);
+    char *state = read_trimmed_file(state_path);
+
+    gtk_label_set_text(GTK_LABEL(page->info_ipv4_label), ipv4);
+    gtk_label_set_text(GTK_LABEL(page->info_mac_label), mac);
+    gtk_label_set_text(GTK_LABEL(page->info_state_label), state);
+
+    g_free(mac_path);
+    g_free(state_path);
+    g_free(ipv4);
+    g_free(mac);
+    g_free(state);
+}
+
+static void set_info_speed_labels(NetworkPage *page, double rx_speed, double tx_speed, TrafficStats *stats) {
+    char *download = network_manager_format_speed(rx_speed);
+    char *upload = network_manager_format_speed(tx_speed);
+    char *rx_total = network_manager_format_bytes(stats->rx_bytes);
+    char *tx_total = network_manager_format_bytes(stats->tx_bytes);
+    gtk_label_set_text(GTK_LABEL(page->info_download_label), download);
+    gtk_label_set_text(GTK_LABEL(page->info_upload_label), upload);
+    gtk_label_set_text(GTK_LABEL(page->info_rx_total_label), rx_total);
+    gtk_label_set_text(GTK_LABEL(page->info_tx_total_label), tx_total);
+    g_free(download);
+    g_free(upload);
+    g_free(rx_total);
+    g_free(tx_total);
+}
+
+static gboolean network_info_tick(gpointer user_data) {
+    NetworkPage *page = user_data;
+    char *iface = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(page->info_iface_combo));
+    if (!iface) return G_SOURCE_CONTINUE;
+
+    update_info_static_labels(page, iface);
+
+    TrafficStats now = {0};
     char *error = NULL;
-    page->capture = packet_capture_start(iface, packet_filter_from_text(filter_text),
-                                         packet_capture_callback, page, &error);
-    if (!page->capture) {
+    if (!network_manager_read_traffic(iface, &now, &error)) {
         log_page_append(page->ctx->log_page, "ERROR", error);
         g_free(error);
         g_free(iface);
-        g_free(filter_text);
-        return;
+        return G_SOURCE_CONTINUE;
     }
 
-    char *msg = g_strdup_printf("Packet capture started on %s.", iface ? iface : "N/A");
-    log_page_append(page->ctx->log_page, "OK", msg);
-    g_free(msg);
+    gint64 current_time = g_get_monotonic_time();
+    double rx_speed = 0.0;
+    double tx_speed = 0.0;
+    if (page->info_has_prev) {
+        double delta = (current_time - page->info_prev_time) / 1000000.0;
+        if (delta > 0.0) {
+            rx_speed = (now.rx_bytes - page->info_prev.rx_bytes) / delta;
+            tx_speed = (now.tx_bytes - page->info_prev.tx_bytes) / delta;
+        }
+    }
+
+    page->info_prev = now;
+    page->info_prev_time = current_time;
+    page->info_has_prev = TRUE;
+    set_info_speed_labels(page, rx_speed, tx_speed, &now);
     g_free(iface);
-    g_free(filter_text);
+    return G_SOURCE_CONTINUE;
 }
 
-static void on_packet_stop(GtkButton *button, gpointer user_data) {
+static void stop_network_info_monitor(NetworkPage *page) {
+    if (page->info_timer_id) {
+        g_source_remove(page->info_timer_id);
+        page->info_timer_id = 0;
+    }
+    page->info_has_prev = FALSE;
+}
+
+static void on_info_start(GtkButton *button, gpointer user_data) {
     (void)button;
     NetworkPage *page = user_data;
-    if (!page->capture) return;
-    packet_capture_stop(page->capture);
-    page->capture = NULL;
-    log_page_append(page->ctx->log_page, "INFO", "Packet capture stopped.");
+    if (page->info_timer_id) return;
+    network_info_tick(page);
+    page->info_timer_id = g_timeout_add_seconds(1, network_info_tick, page);
+    log_page_append(page->ctx->log_page, "OK", "Network realtime info started.");
 }
 
-static void on_packet_clear(GtkButton *button, gpointer user_data) {
+static void on_info_stop(GtkButton *button, gpointer user_data) {
     (void)button;
     NetworkPage *page = user_data;
-    clear_list_box(page->packet_list);
-    log_page_append(page->ctx->log_page, "INFO", "Packet log cleared.");
+    stop_network_info_monitor(page);
+    log_page_append(page->ctx->log_page, "INFO", "Network realtime info stopped.");
 }
 
-static GtkWidget *packet_log_tab(NetworkPage *page) {
-    GtkWidget *root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+static void on_info_refresh_interfaces(GtkButton *button, gpointer user_data) {
+    (void)button;
+    NetworkPage *page = user_data;
+    populate_interfaces(page);
+    network_info_tick(page);
+    log_page_append(page->ctx->log_page, "INFO", "Network realtime interfaces refreshed.");
+}
+
+static void on_info_iface_changed(GtkComboBox *combo, gpointer user_data) {
+    (void)combo;
+    NetworkPage *page = user_data;
+    page->info_has_prev = FALSE;
+    network_info_tick(page);
+}
+
+static GtkWidget *network_info_tab(NetworkPage *page) {
+    GtkWidget *root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
+
     GtkWidget *toolbar = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
-    gtk_box_append(GTK_BOX(root), toolbar);
-
-    page->packet_iface_combo = gtk_combo_box_text_new();
-    page->packet_filter_combo = gtk_combo_box_text_new();
-    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(page->packet_filter_combo), "ALL");
-    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(page->packet_filter_combo), "TCP");
-    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(page->packet_filter_combo), "UDP");
-    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(page->packet_filter_combo), "ICMP");
-    gtk_combo_box_set_active(GTK_COMBO_BOX(page->packet_filter_combo), 0);
-
-    GtkWidget *start = gtk_button_new_with_label("Start Capture");
-    GtkWidget *stop = gtk_button_new_with_label("Stop Capture");
-    GtkWidget *clear = gtk_button_new_with_label("Clear");
+    page->info_iface_combo = gtk_combo_box_text_new();
+    GtkWidget *start = gtk_button_new_with_label("Start Realtime");
+    GtkWidget *stop = gtk_button_new_with_label("Stop Realtime");
+    GtkWidget *refresh = gtk_button_new_with_label("Refresh Interfaces");
     gtk_box_append(GTK_BOX(toolbar), gtk_label_new("Interface:"));
-    gtk_box_append(GTK_BOX(toolbar), page->packet_iface_combo);
-    gtk_box_append(GTK_BOX(toolbar), gtk_label_new("Filter:"));
-    gtk_box_append(GTK_BOX(toolbar), page->packet_filter_combo);
+    gtk_box_append(GTK_BOX(toolbar), page->info_iface_combo);
     gtk_box_append(GTK_BOX(toolbar), start);
     gtk_box_append(GTK_BOX(toolbar), stop);
-    gtk_box_append(GTK_BOX(toolbar), clear);
+    gtk_box_append(GTK_BOX(toolbar), refresh);
+    gtk_box_append(GTK_BOX(root), toolbar);
 
-    const char *headers[] = {"Time", "Protocol", "Source IP", "Destination IP", "Length"};
-    const int widths[] = {90, 80, 180, 180, 80};
-    gtk_box_append(GTK_BOX(root), table_header(headers, widths, 5));
+    GtkWidget *metrics = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    gtk_box_append(GTK_BOX(metrics), metric_row("IPv4", &page->info_ipv4_label));
+    gtk_box_append(GTK_BOX(metrics), metric_row("MAC", &page->info_mac_label));
+    gtk_box_append(GTK_BOX(metrics), metric_row("State", &page->info_state_label));
+    gtk_box_append(GTK_BOX(metrics), metric_row("Download Speed", &page->info_download_label));
+    gtk_box_append(GTK_BOX(metrics), metric_row("Upload Speed", &page->info_upload_label));
+    gtk_box_append(GTK_BOX(metrics), metric_row("RX Total", &page->info_rx_total_label));
+    gtk_box_append(GTK_BOX(metrics), metric_row("TX Total", &page->info_tx_total_label));
+    gtk_box_append(GTK_BOX(root), metrics);
 
-    page->packet_list = gtk_list_box_new();
-    gtk_list_box_set_selection_mode(GTK_LIST_BOX(page->packet_list), GTK_SELECTION_NONE);
-    GtkWidget *scroll = gtk_scrolled_window_new();
-    gtk_widget_set_vexpand(scroll, TRUE);
-    gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scroll), page->packet_list);
-    gtk_box_append(GTK_BOX(root), scroll);
-
-    g_signal_connect(start, "clicked", G_CALLBACK(on_packet_start), page);
-    g_signal_connect(stop, "clicked", G_CALLBACK(on_packet_stop), page);
-    g_signal_connect(clear, "clicked", G_CALLBACK(on_packet_clear), page);
+    g_signal_connect(start, "clicked", G_CALLBACK(on_info_start), page);
+    g_signal_connect(stop, "clicked", G_CALLBACK(on_info_stop), page);
+    g_signal_connect(refresh, "clicked", G_CALLBACK(on_info_refresh_interfaces), page);
+    g_signal_connect(page->info_iface_combo, "changed", G_CALLBACK(on_info_iface_changed), page);
     return root;
 }
 
@@ -438,7 +492,7 @@ static GtkWidget *traffic_monitor_tab(NetworkPage *page) {
 
 static void network_page_free(NetworkPage *page) {
     if (!page) return;
-    if (page->capture) packet_capture_stop(page->capture);
+    stop_network_info_monitor(page);
     stop_traffic_monitor(page);
     g_free(page);
 }
@@ -463,11 +517,12 @@ GtkWidget *ui_network_page_new(AppContext *ctx) {
     gtk_widget_set_vexpand(notebook, TRUE);
     gtk_box_append(GTK_BOX(root), notebook);
 
-    gtk_notebook_append_page(GTK_NOTEBOOK(notebook), packet_log_tab(page), gtk_label_new("Packet Log"));
+    gtk_notebook_append_page(GTK_NOTEBOOK(notebook), network_info_tab(page), gtk_label_new("Network Info"));
     gtk_notebook_append_page(GTK_NOTEBOOK(notebook), connection_viewer_tab(page), gtk_label_new("Connection Viewer"));
     gtk_notebook_append_page(GTK_NOTEBOOK(notebook), traffic_monitor_tab(page), gtk_label_new("Traffic Monitor"));
 
     populate_interfaces(page);
+    network_info_tick(page);
     refresh_connections(page);
     log_page_append(ctx->log_page, "INFO", "Network page loaded.");
     return root;
