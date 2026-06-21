@@ -31,7 +31,7 @@ GtkWidget *ui_help_page_new(AppContext *ctx) {
         "dmesg | tail\n"
         "sudo rmmod simple_kmod\n\n"
         "Notes:\n"
-        "- Load/Unload usually requires sudo/root or pkexec.\n"
+        "- Load/Unload usually requires sudo/root.\n"
         "- If /dev/simple_kmod is missing, load the module first.\n"
         "- If permission is denied, run scripts/setup_device_permission.sh with sudo.";
 

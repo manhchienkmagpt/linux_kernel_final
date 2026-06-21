@@ -76,7 +76,7 @@ Hoac:
 ./bin/kernel_module_gtk
 ```
 
-Load/unload module can quyen root. Co the chay app bang sudo:
+Load/unload module can quyen root. App se goi `sudo bash scripts/module_control.sh ...` khi can, hoac co the chay app bang sudo:
 
 ```bash
 sudo ./bin/kernel_module_gtk

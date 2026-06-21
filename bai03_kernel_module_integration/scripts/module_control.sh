@@ -9,10 +9,10 @@ ko_path="$project_dir/src/simple_kmod.ko"
 
 need_root() {
   if [[ "$(id -u)" -ne 0 ]]; then
-    if command -v pkexec >/dev/null 2>&1; then
-      exec pkexec "$script_path" "$@"
+    if command -v sudo >/dev/null 2>&1; then
+      exec sudo bash "$script_path" "$@"
     fi
-    echo "This action requires root. Run the app with sudo or install pkexec." >&2
+    echo "This action requires root. Run the app with sudo." >&2
     exit 1
   fi
 }
