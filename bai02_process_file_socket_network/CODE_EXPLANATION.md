@@ -1,36 +1,85 @@
 # Giai thich code - Bai 02
 
+## Tong quan
+
+UI da duoc chuyen sang GTK4 va tach module theo tung page. Backend Linux co san van duoc giu nguyen: process, file syscall, socket va network.
+
 ## `src/main.c`
 
-Tao giao dien GTK gom 4 tab. Moi tab co entry, button va text view de hien output. File nay chi xu ly giao dien va dieu phoi, phan logic Linux nam trong cac file `.c` rieng.
+Tao `GtkApplication`, bat signal `activate` va goi `ui_main_window_new`.
 
-## `src/process_utils.c`
+## `src/ui_main_window.c`
 
-- `get_process_list` dung `g_spawn_command_line_sync` chay lenh `ps`. Day la cach gon de lay CPU/RAM phuc vu demo.
-- `kill_process_by_pid` goi truc tiep `kill(pid, SIGTERM)`.
-- `fork_demo` goi `fork()`. Child process ghi log co PID rieng, sleep 2 giay roi thoat. Parent tra ve PID child.
+Tao cua so chinh:
 
-## `src/file_syscall.c`
+- `GtkApplicationWindow`
+- `GtkHeaderBar` voi tieu de "Linux Process, File, Socket & Network Manager"
+- `GtkPaned` ngang
+- `GtkStackSidebar` ben trai
+- `GtkStack` ben phai
 
-File nay dung system call cap thap:
+Moi page duoc them vao stack bang `gtk_stack_add_titled`, nen sidebar tu dong hien dung ten page.
 
-- `open`: mo file.
-- `read`: doc tung block byte.
-- `write`: ghi byte vao file.
-- `close`: dong file descriptor.
+## `src/ui_dashboard_page.c`
 
-Khac voi `fopen/fread`, cac ham nay lam viec truc tiep voi file descriptor cua Linux.
+Dashboard hien cac card thong tin nhanh:
 
-## `src/socket_demo.c`
+- CPU: doc `/proc/stat`.
+- RAM: dung `sysinfo`.
+- Process count: dem output cua `get_process_list`.
+- Network/IP: dung `get_network_info`.
 
-Server chay trong thread rieng de giao dien GTK khong bi treo. Server tao TCP socket, bind port, listen va accept client. Khi client gui message, server log noi dung va tra ve chuoi `ACK from server`.
+Nut Refresh cap nhat label va ghi log.
 
-Client tao socket, connect den host/port, gui message va doc phan hoi.
+## `src/ui_process_page.c`
 
-## `src/network_info.c`
+Process Page giong Task Manager:
 
-Dung `getifaddrs` de duyet danh sach network interface, `getnameinfo` de chuyen dia chi IP sang chuoi. Ket qua gom ten interface, IPv4/IPv6 va trang thai UP/DOWN.
+- `get_process_list` tra ve output `ps`.
+- UI parse tung dong de tao row PID/Name/CPU/RAM.
+- State doc tu `/proc/<pid>/stat`.
+- Search loc theo PID hoac name.
+- Kill Process mo dialog xac nhan roi goi `kill_process_by_pid`.
+- Create Child Process mo dialog nhap so luong va goi `fork_demo`.
 
-## GTK goi backend
+## `src/ui_file_page.c`
 
-Moi nut bam duoc gan voi callback qua `g_signal_connect`. Callback lay gia tri tu `GtkEntry`, goi ham backend, sau do hien ket qua trong `GtkTextView`. Loi tu backend duoc tra ve bang chuoi `GError` hoac `errno`.
+File Page giong File Explorer don gian:
+
+- Choose Folder dung `GtkFileChooserNative`.
+- Bang file dung `GtkListBox`, moi row gom Name, Type, Size, Permission, Modified Time.
+- Read dung backend `read_file_syscall` va hien trong dialog.
+- Write dung backend `write_file_syscall`.
+- Delete co dialog xac nhan.
+
+Backend file van dung system call cap thap `open/read/write/close` trong `file_syscall.c`.
+
+## `src/ui_socket_page.c`
+
+Socket Page la mini chat app:
+
+- Server mode: Start tao TCP server bang `socket_server_start`.
+- Stop goi `socket_server_stop`.
+- Send tao TCP client bang `socket_client_send`.
+- Server log tu thread socket duoc dua ve GTK main loop bang `g_idle_add`.
+
+## `src/ui_network_page.c`
+
+Network Page gom list interface va panel chi tiet:
+
+- Interface list doc tu `/sys/class/net`.
+- IPv4 lay bang `getifaddrs`.
+- MAC doc tu `/sys/class/net/<iface>/address`.
+- State doc tu `/sys/class/net/<iface>/operstate`.
+- Bytes sent/received doc tu `/sys/class/net/<iface>/statistics`.
+
+## `src/ui_log_page.c`
+
+Log Page cung cap `log_page_append`. Moi page nhan `AppContext`, tu do ghi vao Log Page chung. Save Log ghi file `process_file_socket_network_log.txt`.
+
+## Backend cu
+
+- `process_utils.c`: chay `ps`, goi `kill`, goi `fork`.
+- `file_syscall.c`: doc/ghi file bang syscall cap thap.
+- `socket_demo.c`: TCP server/client su dung `socket`, `bind`, `listen`, `accept`, `connect`, `send`, `recv`.
+- `network_info.c`: liet ke interface bang `getifaddrs`.

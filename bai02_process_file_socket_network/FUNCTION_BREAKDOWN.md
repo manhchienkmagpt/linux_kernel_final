@@ -1,44 +1,68 @@
 # Phan ra chuc nang - Bai 02
 
-## Module process
+## Main Window
 
-- `get_process_list`: goi `ps -eo pid,comm,pcpu,pmem --sort=pid` de lay bang process.
-- `kill_process_by_pid`: dung system call `kill(pid, SIGTERM)`.
-- `fork_demo`: dung `fork()` tao child, child sleep ngan roi exit.
-- Input: PID hoac nut lenh.
-- Output: chuoi danh sach process, log PID, thong bao loi neu PID khong ton tai.
+- `main.c`: tao `GtkApplication`.
+- `ui_main_window.c`: tao `GtkApplicationWindow`, HeaderBar, `GtkPaned`, `GtkStackSidebar` va `GtkStack`.
+- `app_context.h`: giu con tro window va Log Page de cac page ghi log chung.
 
-## Module file syscall
+## Dashboard Page
 
-- `read_file_syscall`: dung `open`, lap `read`, dong file bang `close`.
-- `write_file_syscall`: dung `open` voi `O_CREAT | O_TRUNC | O_WRONLY`, ghi bang `write`.
-- Input: duong dan file, noi dung can ghi.
-- Output: noi dung file hoac loi tu `errno`.
+- File: `ui_dashboard_page.c/.h`
+- Hien thi card CPU, RAM, Total Processes, Network Status, IP Address.
+- Input: nut Refresh.
+- Output: label dashboard va Log Page.
+- Du lieu lay tu `/proc/stat`, `sysinfo`, `get_process_list`, `get_network_info`.
 
-## Module socket
+## Process Page
 
-- `socket_server_start`: tao thread server, goi `socket`, `bind`, `listen`, `accept`, `recv`, `send`.
-- `socket_server_stop`: dong server socket va dung thread.
-- `socket_client_send`: tao client socket, `connect`, `send`, `recv`.
-- Input: host, port, message.
-- Output: log ket noi va phan hoi server.
+- File: `ui_process_page.c/.h`
+- Bang process gom PID, Name, CPU %, RAM %, State.
+- Search loc theo PID hoac ten process.
+- Refresh goi `get_process_list`.
+- Kill Process doc PID dang chon, mo dialog xac nhan, sau do goi `kill_process_by_pid`.
+- Create Child Process mo dialog nhap so luong, sau do goi `fork_demo` nhieu lan.
 
-## Module network
+## File Page
 
-- `get_network_info`: dung `getifaddrs` va `getnameinfo` de liet ke interface IPv4/IPv6.
-- Input: khong co.
-- Output: chuoi thong tin interface.
+- File: `ui_file_page.c/.h`
+- File Explorer don gian: current path, Choose Folder, Refresh, bang file.
+- Open dung `g_app_info_launch_default_for_uri`.
+- Read goi `read_file_syscall`, hien noi dung trong dialog.
+- Write mo dialog nhap noi dung va goi `write_file_syscall`.
+- Delete mo dialog xac nhan va xoa file bang `g_remove`.
 
-## Module GTK
+## Socket Page
 
-- Tao notebook gom Process, File, Socket, Network.
-- Ket noi button voi cac ham backend.
-- Tat ca output day vao `GtkTextView` log de de demo.
+- File: `ui_socket_page.c/.h`
+- Mini chat app co Server/Client mode.
+- Server mode: Start goi `socket_server_start`, Stop goi `socket_server_stop`.
+- Client mode: Send goi `socket_client_send`.
+- Connection log hien trong TextView rieng va dong thoi ghi Log Page.
 
-## Luong xu ly chinh
+## Network Page
 
-1. Nguoi dung bam nut tren GTK.
-2. Callback doc input tu entry/text view.
-3. Callback goi module process/file/socket/network.
-4. Ket qua tra ve la chuoi hoac ma loi.
-5. Giao dien hien thi log va hop thoai neu loi.
+- File: `ui_network_page.c/.h`
+- List interface ben trai lay tu `/sys/class/net`.
+- Panel chi tiet ben phai:
+  - Interface Name
+  - IPv4
+  - MAC
+  - State
+  - Bytes Sent
+  - Bytes Received
+- IPv4 lay bang `getifaddrs`; MAC/state/bytes lay tu `/sys/class/net/<iface>`.
+
+## Log Page
+
+- File: `ui_log_page.c/.h`
+- `log_page_append` ghi log theo dang `[INFO]`, `[OK]`, `[ERROR]`.
+- Clear Log xoa buffer.
+- Save Log luu ra `process_file_socket_network_log.txt`.
+
+## Backend giu nguyen
+
+- `process_utils.c/.h`: `ps`, `kill`, `fork`.
+- `file_syscall.c/.h`: `open`, `read`, `write`, `close`.
+- `socket_demo.c/.h`: TCP server/client.
+- `network_info.c/.h`: liet ke interface bang `getifaddrs`.
