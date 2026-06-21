@@ -324,31 +324,7 @@ static const struct proc_ops proc_status_ops = {
 };
 
 static const struct input_device_id mouse_ids[] = {
-    {
-        .flags = INPUT_DEVICE_ID_MATCH_EVBIT |
-                 INPUT_DEVICE_ID_MATCH_RELBIT,
-        .evbit = { BIT_MASK(EV_REL) },
-        .relbit = {
-            [BIT_WORD(REL_X)] = BIT_MASK(REL_X) | BIT_MASK(REL_Y),
-        },
-    },
-    {
-        .flags = INPUT_DEVICE_ID_MATCH_EVBIT |
-                 INPUT_DEVICE_ID_MATCH_ABSBIT,
-        .evbit = { BIT_MASK(EV_ABS) },
-        .absbit = {
-            [BIT_WORD(ABS_X)] = BIT_MASK(ABS_X) | BIT_MASK(ABS_Y),
-        },
-    },
-    {
-        .flags = INPUT_DEVICE_ID_MATCH_EVBIT |
-                 INPUT_DEVICE_ID_MATCH_ABSBIT,
-        .evbit = { BIT_MASK(EV_ABS) },
-        .absbit = {
-            [BIT_WORD(ABS_MT_POSITION_X)] =
-                BIT_MASK(ABS_MT_POSITION_X) | BIT_MASK(ABS_MT_POSITION_Y),
-        },
-    },
+    { .driver_info = 1 },
     {}
 };
 MODULE_DEVICE_TABLE(input, mouse_ids);
